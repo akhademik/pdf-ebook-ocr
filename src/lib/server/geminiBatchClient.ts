@@ -262,51 +262,95 @@ export class GeminiBatchClient {
     }
 
     const data = (await res.json()) as {
+      name?: string;
+      done?: boolean;
       state?: string;
-      error?: { message?: string };
+      error?: { message?: string; code?: number };
+      response?: {
+        responsesFile?: string;
+        outputUri?: string;
+        error?: { message?: string };
+      };
+      metadata?: {
+        state?: string;
+        output?: {
+          responsesFile?: string;
+          outputUri?: string;
+        };
+        output_file?: string;
+        error?: { message?: string };
+      };
       output_file?: string;
       outputUri?: string;
       dest?: { file_name?: string };
     };
 
-    const rawState = data.state || 'JOB_STATE_UNSPECIFIED';
+    const rawState =
+      data.metadata?.state ||
+      data.state ||
+      (data.done
+        ? data.error
+          ? 'BATCH_STATE_FAILED'
+          : 'BATCH_STATE_SUCCEEDED'
+        : 'BATCH_STATE_PENDING');
+
     let state: BatchJobStatus = 'pending';
 
-    switch (rawState) {
+    switch (rawState.toUpperCase()) {
+      case 'BATCH_STATE_SUCCEEDED':
       case 'JOB_STATE_SUCCEEDED':
       case 'SUCCEEDED':
       case 'COMPLETED':
         state = 'completed';
         break;
+      case 'BATCH_STATE_PARTIALLY_SUCCEEDED':
       case 'JOB_STATE_PARTIALLY_SUCCEEDED':
       case 'PARTIALLY_SUCCEEDED':
         state = 'partially_completed';
         break;
+      case 'BATCH_STATE_RUNNING':
       case 'JOB_STATE_RUNNING':
       case 'RUNNING':
       case 'PROCESSING':
+      case 'IN_PROGRESS':
         state = 'running';
         break;
+      case 'BATCH_STATE_FAILED':
       case 'JOB_STATE_FAILED':
       case 'FAILED':
       case 'ERROR':
         state = 'failed';
         break;
+      case 'BATCH_STATE_CANCELLED':
       case 'JOB_STATE_CANCELLED':
+      case 'BATCH_STATE_EXPIRED':
       case 'JOB_STATE_EXPIRED':
+      case 'CANCELLED':
       case 'EXPIRED':
         state = 'expired';
         break;
+      case 'BATCH_STATE_PENDING':
+      case 'BATCH_STATE_QUEUED':
       case 'JOB_STATE_PENDING':
       case 'PENDING':
       case 'QUEUED':
       default:
-        state = 'pending';
+        state = data.done ? (data.error ? 'failed' : 'completed') : 'pending';
         break;
     }
 
-    const outputUri = data.output_file || data.outputUri || data.dest?.file_name;
-    const errorMessage = data.error?.message;
+    const outputUri =
+      data.response?.responsesFile ||
+      data.metadata?.output?.responsesFile ||
+      data.response?.outputUri ||
+      data.metadata?.output?.outputUri ||
+      data.metadata?.output_file ||
+      data.output_file ||
+      data.outputUri ||
+      data.dest?.file_name;
+
+    const errorMessage =
+      data.error?.message || data.response?.error?.message || data.metadata?.error?.message;
 
     return {
       batchId,
@@ -335,19 +379,38 @@ export class GeminiBatchClient {
       throw new Error(`No output file URI available for completed batch ${batchId}`);
     }
 
-    const downloadEndpoint = fileUri.startsWith('http')
-      ? `${fileUri}?key=${this.apiKey}`
-      : `${this.baseUrl}/v1beta/${fileUri}:content?key=${this.apiKey}`;
+    const cleanUri = fileUri.replace(/^\/+/, '');
+    const endpointsToTry: string[] = fileUri.startsWith('http')
+      ? [fileUri.includes('?') ? `${fileUri}&key=${this.apiKey}` : `${fileUri}?key=${this.apiKey}`]
+      : [
+          `${this.baseUrl}/v1beta/${cleanUri}:content?key=${this.apiKey}`,
+          `https://generativelanguage.googleapis.com/download/v1beta/${cleanUri}:download?alt=media&key=${this.apiKey}`,
+          `${this.baseUrl}/v1beta/${cleanUri}?alt=media&key=${this.apiKey}`,
+        ];
 
     logger.info(`Fetching batch results from ${fileUri}...`);
 
-    const res = await fetch(downloadEndpoint);
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Failed to download batch results file (${res.status}): ${errText}`);
+    let text = '';
+    let lastError = '';
+
+    for (const url of endpointsToTry) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          text = await res.text();
+          break;
+        } else {
+          lastError = `Status ${res.status}: ${await res.text()}`;
+        }
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
+      }
     }
 
-    const text = await res.text();
+    if (!text && lastError) {
+      throw new Error(`Failed to download batch results file (${fileUri}): ${lastError}`);
+    }
+
     const lines = text.split('\n').filter((l) => l.trim().length > 0);
     const results = new Map<string, BatchItemResult>();
 
@@ -355,17 +418,20 @@ export class GeminiBatchClient {
       try {
         const parsed = JSON.parse(line) as {
           key?: string;
+          custom_id?: string;
+          id?: string;
           response?: {
             candidates?: Array<{
               content?: {
                 parts?: Array<{ text?: string }>;
               };
             }>;
+            text?: string;
           };
           error?: { message?: string };
         };
 
-        const key = parsed.key || '';
+        const key = parsed.key || parsed.custom_id || parsed.id || '';
         if (!key) continue;
 
         if (parsed.error) {
@@ -374,7 +440,10 @@ export class GeminiBatchClient {
         }
 
         const candidate = parsed.response?.candidates?.[0];
-        const extractedText = candidate?.content?.parts?.map((p) => p.text || '').join('') || '';
+        const extractedText =
+          candidate?.content?.parts?.map((p) => p.text || '').join('') ||
+          parsed.response?.text ||
+          '';
 
         results.set(key, {
           key,

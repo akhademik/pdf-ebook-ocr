@@ -150,14 +150,14 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 16:25
+- **Cập nhật lần cuối**: 2026-09-22 17:20
 - **Đã hoàn thành**:
-  - Sửa lỗi tích hợp **Gemini Batch API (400 FAILED_PRECONDITION)**:
-    - Đặt đúng MIME type `application/jsonl` (`Content-Type` và `X-Goog-Upload-Header-Content-Type`) khi tải file JSONL lên Gemini Files API (thay vì `text/plain`).
-    - Bổ sung cơ chế tự động kiểm tra và chờ trạng thái `state: ACTIVE` của file upload trước khi gọi `batchGenerateContent`.
-    - Tự động rollback các dòng `batching` về `pending` khi submit thất bại để người dùng có thể thử lại ngay mà không bị kẹt.
-    - Bổ sung rich logging an toàn (che API key) in đầy đủ metadata khi submit batch thất bại.
-  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (24/24 passed), knip, graphify.
+  - Sửa lỗi phân tích trạng thái **Gemini Batch Status (`BATCH_STATE_SUCCEEDED` & `response.responsesFile`)**:
+    - Cập nhật hàm `checkBatchStatus` trích xuất chính xác trạng thái từ `metadata.state` (`BATCH_STATE_SUCCEEDED`) hoặc cờ `done: true` của Long Running Operation trong Google AI Batch API.
+    - Cập nhật trường đường dẫn kết quả `outputUri` từ `response.responsesFile` và `metadata.output.responsesFile`.
+    - Nâng cấp `fetchBatchResults` thử nhiều endpoint tải file linh hoạt (`:content`, `:download?alt=media`, `?alt=media`) và hỗ trợ linh hoạt key dạng `key`, `custom_id` hoặc `id`.
+  - Sửa lỗi tích hợp **Gemini Batch API (400 FAILED_PRECONDITION)** với MIME type `application/jsonl` và kiểm tra file `state: ACTIVE`.
+  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (25/25 passed), knip, graphify.
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
   - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
@@ -165,6 +165,17 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Sửa lỗi phân tích Gemini Batch Status & URL tải kết quả responsesFile)
+
+- **Thêm/sửa**:
+  - Cập nhật [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts):
+    - Đọc trạng thái từ `data.metadata.state` (`BATCH_STATE_SUCCEEDED`, `BATCH_STATE_RUNNING`, ...) và cờ `data.done`.
+    - Trích xuất file kết quả từ `data.response.responsesFile` và `data.metadata.output.responsesFile`.
+    - Tối ưu tải file kết quả với fallback nhiều endpoint và phân giải key linh hoạt (`key`, `custom_id`, `id`).
+  - Thêm unit test mới trong [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts) kiểm tra chuẩn xác định dạng Long Running Operation metadata thực tế (25/25 passed).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (25/25 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts), [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts), [`README.md`](README.md).
 
 ### 2026-09-22 (Sửa lỗi Gemini Batch API 400 FAILED_PRECONDITION & Kiểm tra File Metadata)
 

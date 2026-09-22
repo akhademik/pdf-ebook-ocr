@@ -128,6 +128,45 @@ describe('GeminiBatchClient', () => {
     );
   });
 
+  it('should parse batch status correctly with Gemini operation metadata response format', async () => {
+    const mockFetch = vi.fn();
+    global.fetch = mockFetch;
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        name: 'batches/n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf',
+        metadata: {
+          '@type': 'type.googleapis.com/google.ai.generativelanguage.v1main.GenerateContentBatch',
+          model: 'models/gemini-3.6-flash',
+          displayName: 'uy-the-luong-tu-part-1',
+          inputConfig: {
+            fileName: 'files/zp4codgfuhzk',
+          },
+          output: {
+            responsesFile: 'files/batch-n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf',
+          },
+          batchStats: {
+            requestCount: '300',
+            successfulRequestCount: '300',
+          },
+          state: 'BATCH_STATE_SUCCEEDED',
+          name: 'batches/n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf',
+        },
+        done: true,
+        response: {
+          '@type':
+            'type.googleapis.com/google.ai.generativelanguage.v1main.GenerateContentBatchOutput',
+          responsesFile: 'files/batch-n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf',
+        },
+      }),
+    });
+
+    const status = await client.checkBatchStatus('batches/n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf');
+    expect(status.state).toBe('completed');
+    expect(status.outputUri).toBe('files/batch-n03vhhadt0ejutmxolo0jkfcqiwoqvx11rnf');
+  });
+
   it('should parse JSONL batch results into mapped keys', async () => {
     const mockFetch = vi.fn();
     global.fetch = mockFetch;
