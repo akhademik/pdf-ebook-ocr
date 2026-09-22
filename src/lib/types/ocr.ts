@@ -1,7 +1,8 @@
 export type SheetStatus =
   'pending' | 'batching' | 'batch_submitted' | 'batch_processing' | 'processing' | 'done' | 'error';
 
-export type BatchJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'expired';
+export type BatchJobStatus =
+  'pending' | 'running' | 'completed' | 'partially_completed' | 'failed' | 'expired';
 
 export interface DriveFileItem {
   id: string;

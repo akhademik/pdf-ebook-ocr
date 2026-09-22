@@ -31,5 +31,8 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Graphify / Artifacts
+# Graphify / Artifacts / AI Workflows
 graphify-out/
+AI_WORKFLOW.md
+DESIGN_SYSTEM.md
+task.md

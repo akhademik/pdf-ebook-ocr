@@ -341,9 +341,11 @@ export class SyncService {
               errorMessage: errMsg,
             });
             logger.warn(`Batch ${job.batchId} ${statusRes.state}: ${errMsg}`);
-          } else if (statusRes.state === 'completed') {
+          } else if (statusRes.state === 'completed' || statusRes.state === 'partially_completed') {
             stats.completed++;
-            logger.info(`Batch ${job.batchId} completed! Downloading OCR results...`);
+            logger.info(
+              `Batch ${job.batchId} reached ${statusRes.state}! Downloading OCR results...`,
+            );
 
             const results = await this.geminiBatchClient.fetchBatchResults(
               job.batchId,
@@ -392,13 +394,13 @@ export class SyncService {
             }
 
             await this.appscriptClient.updateBatchJob(job.batchId, {
-              status: 'completed',
+              status: statusRes.state,
               lastCheckedAt: nowIso,
-              errorMessage: '',
+              errorMessage: statusRes.errorMessage || '',
             });
 
             logger.info(
-              `Batch ${job.batchId} finished processing (${updates.length} items updated).`,
+              `Batch ${job.batchId} (${statusRes.state}) finished processing (${updates.length} items updated).`,
             );
           }
         } catch (err: unknown) {

@@ -188,6 +188,10 @@ export class GeminiBatchClient {
       case 'COMPLETED':
         state = 'completed';
         break;
+      case 'JOB_STATE_PARTIALLY_SUCCEEDED':
+      case 'PARTIALLY_SUCCEEDED':
+        state = 'partially_completed';
+        break;
       case 'JOB_STATE_RUNNING':
       case 'RUNNING':
       case 'PROCESSING':

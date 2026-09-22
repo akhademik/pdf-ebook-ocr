@@ -183,8 +183,28 @@ export class GeminiClient {
           return text.trim();
         } catch (err: unknown) {
           lastError = err instanceof Error ? err : new Error(String(err));
+          const errMsg = lastError.message.toLowerCase();
+          const isNonRetryable =
+            errMsg.includes('invalid_argument') ||
+            errMsg.includes('invalid argument') ||
+            errMsg.includes('unsupported image') ||
+            errMsg.includes('image format') ||
+            errMsg.includes('bad request') ||
+            errMsg.includes('400');
+
+          if (isNonRetryable) {
+            logger.warn(
+              `Gemini OCR non-retryable error on ${currentModel}: ${lastError.message}. Skipping retries.`,
+            );
+            break;
+          }
+
           if (attempt < RETRY_DELAYS.length) {
-            const delay = RETRY_DELAYS[attempt];
+            const isRateLimit =
+              errMsg.includes('429') ||
+              errMsg.includes('resource_exhausted') ||
+              errMsg.includes('rate limit');
+            const delay = isRateLimit ? RETRY_DELAYS[attempt] * 2 : RETRY_DELAYS[attempt];
             logger.warn(
               `Gemini OCR (${currentModel}) failed (attempt ${attempt + 1}). Retrying in ${delay}ms... Error: ${lastError.message}`,
             );
@@ -193,7 +213,7 @@ export class GeminiClient {
         }
       }
       logger.warn(
-        `Model ${currentModel} thất bại sau các lần retry, thử model tiếp theo trong danh sách fallback...`,
+        `Model ${currentModel} không thành công, thử model tiếp theo trong danh sách fallback...`,
       );
     }
 

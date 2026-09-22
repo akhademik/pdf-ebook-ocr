@@ -1,195 +1,126 @@
-# Docker OCR — Google Apps Script Bridge + Gemini Batch & Realtime OCR + Markdown Export
+# PDF & Ebook OCR — Tự Động Hoá Nhận Diện Sách Scan Tiếng Việt
 
-Ứng dụng OCR tự động hoá nhận diện văn bản từ Google Drive bằng Gemini Vision API (hỗ trợ cả chế độ Realtime và **Gemini Batch API giảm 50% chi phí**), quản lý trạng thái qua Google Sheets và tự động xuất các trang văn bản ra file nén ZIP Markdown (`page1.md`, `page2.md`, ... theo từng cuốn sách).
-
-> 💡 **Kiến trúc Apps Script Bridge**: Ứng dụng không cần Google Cloud Console hay Service Account phức tạp. Thay vào đó, một Apps Script Web App đóng vai trò proxy an toàn kết nối giữa backend và Google Drive / Google Sheets.
+Ứng dụng tự động hoá nhận diện văn bản (OCR) cho sách và tài liệu scan tiếng Việt từ **Google Drive**, xử lý qua **Google Gemini Vision API** (hỗ trợ cả chế độ xử lý tức thì và **Gemini Batch API giảm 50% chi phí**), quản lý tiến độ trực quan qua **Google Sheets** và tự động xuất các trang sách ra file nén **ZIP Markdown** (`page1.md`, `page2.md`... theo từng cuốn sách).
 
 ---
 
-## Trạng thái hệ thống
+## 🌟 Tính Năng Chính
 
-- Cập nhật lần cuối: 2026-09-22 14:38
-- Đã hoàn thành:
-  - **Custom Dialog & Confirm Modal (`CustomDialogModal.svelte`)**: Thay thế toàn bộ `window.alert` và `window.confirm` mặc định bằng hệ thống Modal tùy biến chuẩn Tailwind CSS, hỗ trợ đa dạng variant (`info`, `success`, `warning`, `error`, `confirm`) kèm hiệu ứng backdrop blur và phím tắt Escape.
-  - **Nút xóa & Icon màu đỏ nổi bật**: Nút xóa sách trong `BooksOverviewCard.svelte` được làm nổi bật với màu đỏ `text-rose-400 bg-rose-500/10 border-rose-500/20` giúp người dùng dễ dàng nhận biết.
-  - **Tách biệt quét Drive (Discovery) và thực thi Batch OCR**: Khi reload/khởi động/quét cron, hệ thống **chỉ quét nạp file vào Google Sheet với trạng thái `pending`**, không tự động chạy OCR trước khi người dùng bấm nút duyệt.
-  - **Chỉ chạy OCR khi người dùng chủ động yêu cầu**: Bấm "Chạy Batch" cho từng cuốn sách hoặc "Gom & Gửi Tất Cả Sách".
-  - **Cột `note` để trống cho người dùng**: Không tự động điền MD5 hash vào cột `note`, để người dùng tự do ghi chú.
-  - **Tối ưu Header**: Loại bỏ selector model trùng lặp trên Header (giữ nguyên selector trong Control Panel).
-  - **Gemini Batch API Mode (`task.md`)**: Hỗ trợ gom hàng trăm/hàng nghìn trang ảnh theo từng cuốn sách (subfolder), tự động build JSONL, upload lên Google AI File API, tạo Batch Job và định kỳ poll kết quả (giảm 50% chi phí API).
-  - **Quản lý 2 bảng Google Sheet**:
-    - Sheet chính: `[fileName, status, driveFileId, ocrText, errorMessage, bookName, batchId, batchRequestKey, note]`
-    - Sheet phụ `batch_jobs`: `[batchId, bookName, submittedAt, status, lastCheckedAt, totalImages, errorMessage]`
-  - **Tự động quét theo Subfolder**: Quét toàn bộ thư mục con bên trong Drive Folder, tự động gán `bookName` bằng tên thư mục con.
-  - **Prompt Editor UI**: Tùy chỉnh prompt OCR trực tiếp từ giao diện.
-  - **Xuất ZIP Markdown phân cấp**: Nén in-memory tải thẳng `.zip` về máy theo từng cuốn sách hoặc tất cả.
-  - **3 Model Gemini Flash**: Mặc định `gemini-3.5-flash-lite`, Fallback 1 `gemini-3.1-flash-lite`, Fallback 2 `gemini-2.5-flash`.
-  - Frontend UI Dashboard SvelteKit 5 (Runes) + TypeScript + Tailwind CSS.
-  - Bộ kiểm thử Unit Tests Vitest (8/8 suites, 22/22 tests pass 100%).
-- Đang dở: Không có
-- Biết trước còn thiếu / nợ kỹ thuật: Không có
+- **Quản lý theo từng cuốn sách**: Mỗi thư mục con trên Google Drive được nhận diện là một cuốn sách riêng biệt, có tiến độ và thống kê riêng (`Tổng số trang`, `Đã xong`, `Đang xử lý`, `Lỗi`).
+- **Tách biệt Quét & Thực thi OCR**: Khi quét Google Drive, ứng dụng chỉ nạp danh sách ảnh vào Google Sheet ở trạng thái Chờ (`pending`). Bạn hoàn toàn chủ động quyết định khi nào chạy OCR cho từng cuốn.
+- **Tiết kiệm 50% chi phí với Gemini Batch API**: Tự động gom toàn bộ trang của cuốn sách gửi lên hệ thống Batch của Google AI và định kỳ kiểm tra nạp kết quả về Sheet.
+- **Tùy chỉnh Prompt OCR trực tiếp**: Cho phép chỉnh sửa quy tắc trích xuất văn bản tiếng Việt ngay trên giao diện web (giữ nguyên chính tả, từ ngữ nguyên văn, định dạng Markdown).
+- **Xuất ZIP Markdown phân cấp**: Tải nhanh file `.zip` chứa các trang văn bản Markdown được đánh số thứ tự chuẩn xác cho từng cuốn hoặc toàn bộ thư mục.
+- **Giao diện Web trực quan**: Theo dõi tiến độ thời gian thực, xem trước ảnh gốc kèm kết quả OCR, quản lý và xóa sách đã hoàn thành.
 
 ---
 
-## Changelog
+## 🚀 Hướng Dẫn Cấu Hình Từng Bước
 
-### 2026-09-22 (Custom Modals & Red Delete Button)
+### Bước 1: Chuẩn bị Thư mục trên Google Drive
 
-- **Custom Modal & Confirmation Dialog**: Tạo `src/lib/types/modal.ts` và `src/lib/components/CustomDialogModal.svelte` thay thế toàn bộ `window.alert()` và `window.confirm()` mặc định của trình duyệt.
-- **Red Delete Button / Icon**: Cập nhật nút xóa sách trong `BooksOverviewCard.svelte` sang màu đỏ nổi bật với icon `Trash2` và nhãn "Xóa sách".
-- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ (`svelte-check` 0 error, 0 warning) | test ✅ (8/8 suites, 22/22 tests) | knip ✅ (0 issue) | build ✅
-
-### 2026-09-22 (Bổ sung cải tiến kiểm soát OCR & Header)
-
-- **Ngăn tự động OCR khi khởi động/reload**: Cập nhật cron scheduler và quy trình quét chỉ thực hiện Discovery (quét ảnh, cập nhật trạng thái `pending` lên Google Sheet). OCR chỉ kích hoạt khi người dùng bấm nút thực thi.
-- **Để trống cột `note`**: Sửa logic gán dòng mới trong `syncService.ts` và Apps Script `Code.gs` để cột `note` để trống (`""`) thay vì gán hash checksum, cho phép người dùng tùy ý ghi chú.
-- **Dọn dẹp Header**: Bỏ dropdown chọn model bị trùng lặp trên Header bar, tinh gọn UI.
-- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ (`svelte-check` 0 error, 0 warning) | test ✅ (8/8 suites, 22/22 tests) | knip ✅ (0 issue) | build ✅
-
-### 2026-09-22
-
-- **Batch Mode Pipeline (`task.md`)**: Triển khai `GeminiBatchClient`, `submitPendingBatches()`, `pollRunningBatches()`, và scheduler 2 cron độc lập.
-- **Apps Script Multi-sheet & Subfolder Support**: Cập nhật `apps-script/Code.gs` tự động tạo header, hỗ trợ quét subfolder và bảng `batch_jobs`.
-- **UI Batch Monitoring**: Thêm component `BatchJobsTable`, bổ sung nút kiểm tra batch và cập nhật trạng thái `batch_submitted`, `batching`.
-- **Prompt Editor & Zip Exporter**: Tùy chỉnh prompt OCR và tải file zip in-memory không cần ổ đĩa cục bộ.
-- Kết quả pipeline: format ✅ | lint ✅ | type ✅ (`svelte-check` 0 error) | test ✅ (8/8 suites, 21/21 tests) | knip ✅ (0 issue) | build ✅
-
----
-
-## 1. Định dạng Header và Cấu trúc Google Sheet (Yêu cầu khởi tạo)
-
-Bảng tính Google Sheets của bạn cần có **2 trang tính (sheets)**:
-
-### 1.1 Trang tính 1 (Sheet chính - Đặt tên mặc định `Sheet1` hoặc trang đầu tiên)
-
-Dòng 1 (Row 1 Header) bao gồm 9 cột cố định:
-
-| Cột   | Tên Header        | Ý nghĩa                                                                              |
-| :---- | :---------------- | :----------------------------------------------------------------------------------- |
-| **A** | `fileName`        | Tên file ảnh (ví dụ: `001.jpg`, `page_001.png`)                                      |
-| **B** | `status`          | Trạng thái (`pending`, `batching`, `batch_submitted`, `processing`, `done`, `error`) |
-| **C** | `driveFileId`     | ID định danh của file trên Google Drive                                              |
-| **D** | `ocrText`         | Kết quả văn bản OCR nhận diện được                                                   |
-| **E** | `errorMessage`    | Thông báo lỗi chi tiết nếu quá trình OCR gặp sự cố                                   |
-| **F** | `note`            | Ghi chú hoặc MD5 Checksum của file ảnh                                               |
-| **G** | `bookName`        | Tên cuốn sách (tự động lấy theo tên thư mục con trên Drive)                          |
-| **H** | `batchId`         | ID của lô Batch Job trên Gemini                                                      |
-| **I** | `batchRequestKey` | Khóa định danh ảnh trong file JSONL gửi lên Gemini Batch API                         |
-
-### 1.2 Trang tính 2 (Sheet phụ - Đặt tên chính xác là `batch_jobs`)
-
-Bấm nút `+` ở góc dưới Google Sheet để thêm trang tính mới và đổi tên thành **`batch_jobs`**.
-Dòng 1 (Row 1 Header) bao gồm 7 cột:
-
-| Cột   | Tên Header      | Ý nghĩa                                                                 |
-| :---- | :-------------- | :---------------------------------------------------------------------- |
-| **A** | `batchId`       | ID Batch Job do Gemini trả về                                           |
-| **B** | `bookName`      | Tên cuốn sách của lô ảnh này                                            |
-| **C** | `submittedAt`   | Thời điểm gửi batch lên Gemini                                          |
-| **D** | `status`        | Trạng thái job (`pending`, `running`, `completed`, `failed`, `expired`) |
-| **E** | `lastCheckedAt` | Lần kiểm tra trạng thái gần nhất                                        |
-| **F** | `totalImages`   | Tổng số lượng trang/ảnh trong batch                                     |
-| **G** | `errorMessage`  | Thông báo lỗi nếu batch thất bại                                        |
-
-> 💡 _Lưu ý_: Hàm `ensureHeader` trong Apps Script cũng sẽ tự động kiểm tra và khởi tạo các cột/sheet trên nếu chưa có khi bạn bấm **"Kiểm tra kết nối" (Setup Check)** trên Dashboard.
-
----
-
-## 2. Quy ước Thư mục trên Google Drive (Group theo cuốn sách)
-
-Để hệ thống tự động nhận diện và gom nhóm ảnh theo từng cuốn sách (`bookName`), hãy tổ chức thư mục trên Google Drive như sau:
+Tạo một thư mục gốc trên Google Drive (ví dụ: `OCR_Books`), bên trong chứa các thư mục con tương ứng với từng cuốn sách:
 
 ```text
 📁 THƯ MỤC GỐC (DRIVE_FOLDER_ID)
- ├── 📁 Cuon_Sach_A/
- │    ├── 001_trang_1.jpg
- │    ├── 002_trang_2.jpg
- │    └── 003_trang_3.jpg
- ├── 📁 Cuon_Sach_B/
- │    ├── page_01.png
- │    └── page_02.png
- └── (ảnh lẻ ở thư mục gốc sẽ được gán bookName = tên thư mục gốc hoặc "Default")
+ ├── 📁 Cuon_Sach_1/
+ │    ├── 001.jpg
+ │    ├── 002.jpg
+ │    └── 003.jpg
+ └── 📁 Cuon_Sach_2/
+      ├── page_01.png
+      └── page_02.png
 ```
 
+> 💡 **Lấy ID thư mục gốc**: Mở thư mục gốc trên trình duyệt, sao chép chuỗi ký tự ở cuối đường link URL:  
+> `https://drive.google.com/drive/folders/`**`1a2b3c4d5e6f7g8h9i0jKLMNOP`**
+
 ---
 
-## 3. Hướng dẫn thiết lập Google Apps Script Bridge
+### Bước 2: Thiết lập Google Apps Script & Google Sheet
 
-### Bước 1: Dán mã nguồn Apps Script
+Ứng dụng kết nối an toàn với Google Drive / Sheets qua một Apps Script Web App mà **không cần Google Cloud Service Account phức tạp**:
 
-1. Mở file [Google Sheets](https://sheets.new) của bạn.
+1. Mở một file [Google Sheets mới](https://sheets.new).
 2. Trên thanh menu, chọn **Tiện ích mở rộng (Extensions)** > **Apps Script**.
-3. Xóa toàn bộ nội dung mặc định, mở file [`apps-script/Code.gs`](file:///home/hajtran/dev/docker-ocr/apps-script/Code.gs) trong repo này, sao chép toàn bộ nội dung và dán vào.
-
-### Bước 2: Đặt Secret Token bảo mật
-
-1. Trong giao diện Apps Script, bấm vào biểu tượng **Cài đặt dự án (Project Settings)** ⚙️ ở thanh bên trái.
-2. Cuộn xuống **Thuộc tính tập lệnh (Script Properties)** > Bấm **Thêm thuộc tính tập lệnh**:
-   - **Thuộc tính (Property)**: `SECRET_TOKEN`
-   - **Giá trị (Value)**: Nhập một chuỗi ký tự bí mật bất kỳ do bạn tự đặt (ví dụ: `my-secret-ocr-2026`).
-3. Bấm **Lưu thuộc tính tập lệnh**.
-
-### Bước 3: Triển khai thành Web App
-
-1. Bấm nút **Triển khai (Deploy)** ở góc trên bên phải > chọn **Tùy chọn triển khai mới (New deployment)**.
-2. Chọn loại **Ứng dụng web (Web app)**:
+3. Xóa nội dung mặc định, mở file [`apps-script/Code.gs`](apps-script/Code.gs) trong dự án này, sao chép toàn bộ nội dung và dán vào.
+4. Thiết lập mật mã bảo mật (**Secret Token**):
+   - Bấm vào biểu tượng **Cài đặt dự án (Project Settings ⚙️)** ở menu bên trái.
+   - Cuộn xuống mục **Thuộc tính tập lệnh (Script Properties)** > Bấm **Thêm thuộc tính tập lệnh**:
+     - **Thuộc tính (Property)**: `SECRET_TOKEN`
+     - **Giá trị (Value)**: Nhập một mật mã bí mật bất kỳ do bạn tự đặt (ví dụ: `my-secret-token-2026`).
+   - Bấm **Lưu thuộc tính tập lệnh**.
+5. Triển khai Web App:
+   - Bấm nút **Triển khai (Deploy)** ở góc trên bên phải > chọn **Tùy chọn triển khai mới (New deployment)**.
+   - Chọn loại: **Ứng dụng web (Web app)**.
    - **Thực thi dưới dạng (Execute as)**: `Tôi (Me)`
    - **Ai có quyền truy cập (Who has access)**: `Bất kỳ ai (Anyone)`
-3. Bấm **Triển khai (Deploy)** > Cấp quyền truy cập (Authorize access).
-4. Sao chép **URL ứng dụng web** (dạng `https://script.google.com/macros/s/.../exec`).
+   - Bấm **Triển khai (Deploy)** > Chọn **Cấp quyền truy cập (Authorize access)** và đăng nhập tài khoản Google của bạn.
+   - Sao chép **URL ứng dụng web** (dạng `https://script.google.com/macros/s/.../exec`).
 
 ---
 
-## 4. Cấu hình biến môi trường (`.env`)
+### Bước 3: Cấu hình Biến môi trường (`.env`)
 
-Tạo file `.env` từ `.env.example`:
+Tạo file `.env` tại thư mục gốc của dự án (sao chép từ `.env.example`):
 
 ```dotenv
-# Apps Script Bridge
+# 1. Apps Script Bridge
 APPSCRIPT_WEB_APP_URL=https://script.google.com/macros/s/AKfycb.../exec
-APPSCRIPT_SECRET=my-secret-ocr-2026
+APPSCRIPT_SECRET=my-secret-token-2026
 
-# Google Drive folder ID gốc chứa các thư mục sách
+# 2. ID Thư mục gốc trên Google Drive
 DRIVE_FOLDER_ID=1a2b3c4d5e6f7g8h9i0jKLMNOP
 
-# Gemini API key (https://aistudio.google.com/apikey)
+# 3. Gemini API Key (Lấy tại https://aistudio.google.com/apikey)
 GEMINI_API_KEY=AIzaSy...
 GEMINI_MODEL=gemini-3.5-flash-lite
 
-# Bật/tắt chế độ Batch (true: dùng Gemini Batch API giảm 50% phí, false: OCR trực tiếp)
+# 4. Chế độ Batch (true: giảm 50% chi phí, false: OCR từng ảnh trực tiếp)
 USE_BATCH_MODE=true
 
-# Thời gian chờ sau ảnh cuối cùng upload mới submit (phút)
-BATCH_WAIT_BEFORE_SUBMIT_MINUTES=10
-
-# Chu kỳ kiểm tra trạng thái batch job (phút)
+# 5. Cấu hình chu kỳ tự động
 BATCH_POLL_INTERVAL_MINUTES=20
-
-# Số ảnh tối đa mỗi batch job (chia nhỏ nếu cuốn quá lớn)
 BATCH_MAX_IMAGES_PER_JOB=300
-
-# Chu kỳ quét Drive tìm ảnh mới (phút)
 POLL_INTERVAL_MINUTES=5
 MAX_CONCURRENCY=3
 ```
 
 ---
 
-## 5. Chạy ứng dụng
+## 💻 Hướng Dẫn Khởi Chạy
 
-### Chạy chế độ Phát triển (Dev Mode)
+### Cách 1: Chạy bằng Docker (Khuyên dùng)
+
+```bash
+docker compose up -d --build
+```
+
+Truy cập giao diện tại: **`http://localhost:3000`**
+
+### Cách 2: Chạy trực tiếp bằng Node.js / pnpm
 
 ```bash
 pnpm install
 pnpm run dev
 ```
 
-Mở trình duyệt tại `http://localhost:5173`.
+Truy cập giao diện tại: **`http://localhost:5173`**
 
-### Chạy bằng Docker Compose
+---
 
-```bash
-docker compose up -d --build
-```
+## 📖 Hướng Dẫn Sử Dụng Giao Diện
 
-Mở trình duyệt tại `http://localhost:3000`.
+1. **Kiểm tra kết nối**: Bấm **"Kiểm tra kết nối"** ở thẻ trạng thái để xác nhận kết nối giữa Backend, Google Drive, Google Sheets và Gemini API.
+2. **Quét tìm ảnh mới**: Bấm nút **"Quét Google Drive"** để phát hiện tất cả sách và trang ảnh mới. Các trang mới sẽ xuất hiện trên danh sách với trạng thái Chờ (`pending`).
+3. **Chạy OCR cho sách**:
+   - **Chạy từng cuốn**: Bấm nút **"Chạy Batch (X)"** trên từng thẻ cuốn sách để gửi riêng cuốn đó.
+   - **Chạy tất cả**: Bấm **"Gom & Gửi Tất Cả Sách"** ở bảng điều khiển trung tâm.
+4. **Theo dõi & Nhận kết quả**:
+   - Hệ thống tự động kiểm tra định kỳ hoặc bạn có thể bấm **"Check Batch"** để nạp kết quả ngay khi Gemini xử lý xong.
+   - Khi hoàn tất, trạng thái trang sẽ chuyển sang `done` kèm nội dung văn bản OCR trích xuất được.
+5. **Xem trước & Chỉnh sửa**: Bấm vào bất kỳ dòng nào trong bảng để xem ảnh gốc scan cùng kết quả văn bản OCR, hỗ trợ copy nhanh văn bản.
+6. **Tải file ZIP Markdown**:
+   - Bấm nút **"Tải ZIP"** tại thẻ từng cuốn sách để tải riêng cuốn đó.
+   - Hoặc bấm **"Tải ZIP"** tại bảng điều khiển chính để tải toàn bộ các cuốn đã hoàn thành.
+7. **Xóa sách hoàn thành**: Bấm nút **"Xóa sách"** (màu đỏ) trên thẻ cuốn sách để dọn dẹp các dòng đã xử lý xong khỏi Google Sheet.

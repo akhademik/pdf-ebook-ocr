@@ -211,26 +211,10 @@ function listImages(folderId) {
       const mimeType = file.getMimeType();
 
       if (mimeType && mimeType.indexOf('image/') === 0) {
-        const fileId = file.getId();
-        const fileName = file.getName();
-        const createdTime = file.getDateCreated().toISOString();
-
-        // MD5 Checksum
-        const bytes = file.getBlob().getBytes();
-        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, bytes);
-        let md5Checksum = '';
-        for (let i = 0; i < digest.length; i++) {
-          let byteVal = digest[i];
-          if (byteVal < 0) byteVal += 256;
-          const byteHex = byteVal.toString(16);
-          md5Checksum += (byteHex.length === 1 ? '0' : '') + byteHex;
-        }
-
         result.push({
-          id: fileId,
-          name: fileName,
-          md5Checksum: md5Checksum || fileId,
-          createdTime: createdTime,
+          id: file.getId(),
+          name: file.getName(),
+          createdTime: file.getDateCreated().toISOString(),
           mimeType: mimeType,
           bookName: bookName || 'Default',
         });
