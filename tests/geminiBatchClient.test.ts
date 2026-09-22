@@ -8,7 +8,7 @@ describe('GeminiBatchClient', () => {
     client = new GeminiBatchClient('test_api_key');
   });
 
-  it('should format and submit batch job with jsonl upload', async () => {
+  it('should format and submit batch job with :batchGenerateContent endpoint and nested batch payload', async () => {
     const mockFetch = vi.fn();
     global.fetch = mockFetch;
 
@@ -25,7 +25,7 @@ describe('GeminiBatchClient', () => {
     });
 
     const result = await client.submitBatchJob(
-      'gemini-3.5-flash-lite',
+      'gemini-2.5-flash',
       [
         { key: 'file1', base64: 'base64_data_1', mimeType: 'image/jpeg' },
         { key: 'file2', base64: 'base64_data_2', mimeType: 'image/png' },
@@ -37,9 +37,52 @@ describe('GeminiBatchClient', () => {
     expect(result.batchId).toBe('batches/job-xyz-789');
     expect(result.totalImages).toBe(2);
     expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    // Verify 2nd call (batch creation)
+    const [createUrl, createOptions] = mockFetch.mock.calls[1] as [string, RequestInit];
+    expect(createUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:batchGenerateContent?key=test_api_key',
+    );
+    expect(createOptions.method).toBe('POST');
+
+    const parsedBody = JSON.parse(createOptions.body as string) as {
+      batch: { display_name: string; input_config: { file_name: string } };
+    };
+    expect(parsedBody.batch).toBeDefined();
+    expect(parsedBody.batch.display_name).toBe('TestBook');
+    expect(parsedBody.batch.input_config.file_name).toBe('files/abc123upload');
   });
 
-  it('should parse batch status correctly', async () => {
+  it('should throw detailed error with status and response body when batch creation fails', async () => {
+    const mockFetch = vi.fn();
+    global.fetch = mockFetch;
+
+    // 1. Mock file upload
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ file: { name: 'files/abc123upload', uri: 'https://...' } }),
+    });
+
+    // 2. Mock batch create failure (404)
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => '{"error": {"code": 404, "message": "Method not found"}}',
+    });
+
+    await expect(
+      client.submitBatchJob(
+        'gemini-2.5-flash',
+        [{ key: 'file1', base64: 'base64_data_1', mimeType: 'image/jpeg' }],
+        'Sample prompt',
+        'TestBook',
+      ),
+    ).rejects.toThrow(
+      'Failed to create Gemini Batch job (404): {"error": {"code": 404, "message": "Method not found"}}',
+    );
+  });
+
+  it('should parse batch status correctly without duplicated batches prefix', async () => {
     const mockFetch = vi.fn();
     global.fetch = mockFetch;
 
@@ -54,6 +97,11 @@ describe('GeminiBatchClient', () => {
     const status = await client.checkBatchStatus('batches/job-xyz-789');
     expect(status.state).toBe('completed');
     expect(status.outputUri).toBe('files/result123');
+
+    const [statusUrl] = mockFetch.mock.calls[0] as [string];
+    expect(statusUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/batches/job-xyz-789?key=test_api_key',
+    );
   });
 
   it('should parse JSONL batch results into mapped keys', async () => {

@@ -150,17 +150,15 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 15:55
+- **Cập nhật lần cuối**: 2026-09-22 16:10
 - **Đã hoàn thành**:
-  - Triển khai kiến trúc **Asynchronous Batch Execution (P0 & P1)**:
-    - Bấm "Chạy Batch" trả về ngay `202 Accepted` kèm `runId`, không giữ kết nối HTTP dài gây timeout.
-    - Khởi tạo tiến trình nền `BatchRunManager` hỗ trợ tải ảnh song song (concurrency pool 4 luồng) từ Drive qua Apps Script, tăng tốc 3x–4x.
-    - Cung cấp API lightweight `/api/batch-runs` và `/api/batch-runs/:runId` để UI polling định kỳ 1.5–2s.
-    - Giao diện Card Sách (`BooksOverviewCard`) hiển thị thanh tiến trình trực quan theo thời gian thực: `Đang tải ảnh: 45 / 120 (38%)` ➔ `Đang upload lên Gemini...` ➔ `Đã nạp lô: batches/xxx`.
-  - Tách bạch hoàn toàn luồng Quét (`pending`) và Thực thi OCR.
-  - Tối ưu Apps Script `appendRows` chèn hàng loạt (batch insert) trong 1 request.
-  - Tối ưu giao diện bảng trang với Infinite Scroll (chunk 20 trang) + Instant Search.
-  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (23/23 passed), knip, graphify.
+  - Sửa lỗi tích hợp **Gemini Batch API**:
+    - Chuẩn hóa endpoint sang `POST /v1beta/models/{model}:batchGenerateContent`.
+    - Chuẩn hóa body cấu trúc payload với root `batch: { display_name, input_config: { file_name } }`.
+    - Chuẩn hóa cấu hình model Gemini sang các model hiện hành đã xác thực (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`).
+    - Nâng cấp error log chi tiết (kèm response body đầy đủ) khi xảy ra lỗi từ Gemini.
+  - Triển khai kiến trúc **Asynchronous Batch Execution (P0 & P1)** với `BatchRunManager`, tải ảnh song song và thanh tiến trình thời gian thực.
+  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (24/24 passed), knip, graphify.
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
   - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
@@ -168,6 +166,18 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Sửa lỗi Gemini Batch API endpoint & payload format)
+
+- **Thêm/sửa**:
+  - Sửa lỗi `404 Method not found` khi khởi tạo Batch Job trong [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts).
+  - Cập nhật endpoint chính xác: `${baseUrl}/v1beta/${normalizedModel}:batchGenerateContent?key=${apiKey}`.
+  - Cập nhật payload chính xác: `{ batch: { display_name, input_config: { file_name } } }`.
+  - Cập nhật model mặc định từ unverified sang model hiện hành `gemini-2.5-flash` và tối ưu cơ chế test connection trực tiếp.
+  - Cải thiện thông báo lỗi khi tạo batch để in toàn bộ response body lỗi từ Google AI.
+  - Bổ sung và cập nhật unit tests trong [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts) (24/24 tests pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (24/24 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts), [`src/lib/server/config.ts`](src/lib/server/config.ts), [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts), [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), [`tests/config.test.ts`](tests/config.test.ts), [`tests/syncService.test.ts`](tests/syncService.test.ts), [`.env.example`](.env.example), [`README.md`](README.md).
 
 ### 2026-09-22 (Chuẩn hóa Lucide Icons & Loại bỏ cảnh báo Deprecated)
 

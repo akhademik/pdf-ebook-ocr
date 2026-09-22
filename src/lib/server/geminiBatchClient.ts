@@ -112,14 +112,15 @@ export class GeminiBatchClient {
 
     // 2. Create batch job
     const normalizedModel = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
-    const batchEndpoint = `${this.baseUrl}/v1beta/batches?key=${this.apiKey}`;
+    const batchEndpoint = `${this.baseUrl}/v1beta/${normalizedModel}:batchGenerateContent?key=${this.apiKey}`;
 
     const payload = {
-      model: normalizedModel,
-      src: {
-        file_name: uploadedFileName,
+      batch: {
+        display_name: displayName || `OCR Batch ${timestamp}`,
+        input_config: {
+          file_name: uploadedFileName,
+        },
       },
-      display_name: displayName || `OCR Batch ${timestamp}`,
     };
 
     logger.info(

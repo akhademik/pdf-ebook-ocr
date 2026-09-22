@@ -11,7 +11,7 @@ describe('syncService (Custom Sheet Schema & Batch Mode)', () => {
     appscriptSecret: 'secret123',
     driveFolderId: 'folder123',
     geminiApiKey: 'test_key',
-    geminiModel: 'gemini-3.5-flash-lite',
+    geminiModel: 'gemini-2.5-flash',
     pollIntervalMinutes: 5,
     maxConcurrency: 2,
     outputDir: testOutputDir,

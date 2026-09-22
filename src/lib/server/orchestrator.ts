@@ -17,7 +17,7 @@ class ServiceOrchestrator {
   private cronSubmitTask: ScheduledTask | null = null;
   private cronPollTask: ScheduledTask | null = null;
   private lastSetupCheck: SetupCheckResult | null = null;
-  private activeModel: string = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  private activeModel: string = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   public getActiveModel(): string {
     return this.activeModel;
@@ -57,19 +57,19 @@ class ServiceOrchestrator {
     if (!client) {
       return [
         {
-          id: 'gemini-3.5-flash-lite',
-          name: 'Gemini 3.5 Flash Lite',
-          displayName: 'Gemini 3.5 Flash Lite (Mặc định)',
-        },
-        {
-          id: 'gemini-3.1-flash-lite',
-          name: 'Gemini 3.1 Flash Lite',
-          displayName: 'Gemini 3.1 Flash Lite (Fallback 1)',
-        },
-        {
           id: 'gemini-2.5-flash',
           name: 'Gemini 2.5 Flash',
-          displayName: 'Gemini 2.5 Flash (Fallback 2)',
+          displayName: 'Gemini 2.5 Flash (Mặc định)',
+        },
+        {
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          displayName: 'Gemini 2.0 Flash',
+        },
+        {
+          id: 'gemini-1.5-flash',
+          name: 'Gemini 1.5 Flash',
+          displayName: 'Gemini 1.5 Flash',
         },
       ];
     }
