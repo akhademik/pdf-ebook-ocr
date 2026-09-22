@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { orchestrator } from '$lib/server/orchestrator.js';
 
-export const POST: RequestHandler = async () => {
+export const POST: RequestHandler = async ({ request }) => {
   const syncService = orchestrator.getSyncService();
   if (!syncService) {
     return json(
@@ -12,12 +12,25 @@ export const POST: RequestHandler = async () => {
   }
 
   if (syncService.isBusy()) {
-    return json({ error: 'Sync cycle is already running' }, { status: 409 });
+    return json({ error: 'Một tiến trình đồng bộ hoặc batch đang chạy' }, { status: 409 });
   }
 
-  // Run in background or wait
-  const summaryPromise = syncService.runSyncCycle();
-  const summary = await summaryPromise;
+  let action = 'sync';
+  try {
+    const body = (await request.json()) as { action?: string };
+    if (body.action) action = body.action;
+  } catch {
+    // Body is optional
+  }
 
-  return json({ success: true, summary });
+  if (action === 'poll') {
+    const pollResult = await syncService.pollRunningBatches();
+    return json({ success: true, action: 'poll', pollResult });
+  } else if (action === 'submit') {
+    const summary = await syncService.submitPendingBatches();
+    return json({ success: true, action: 'submit', summary });
+  } else {
+    const summary = await syncService.runSyncCycle();
+    return json({ success: true, action: 'sync', summary });
+  }
 };

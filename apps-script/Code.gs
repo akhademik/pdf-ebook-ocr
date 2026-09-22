@@ -1,13 +1,17 @@
 /**
- * GOOGLE APPS SCRIPT BRIDGE FOR DOCKER OCR (Schema Tùy Biến)
+ * GOOGLE APPS SCRIPT BRIDGE FOR DOCKER OCR (Hỗ trợ Realtime & Batch Mode)
  *
- * Cấu trúc cột Google Sheet (Row 1 cố định):
- * [ Cột A: fileName | Cột B: status | Cột C: driveFileId | Cột D: ocrText | Cột E: errorMessage | Cột F: note ]
+ * Cấu trúc 2 Sheet:
+ * 1. Sheet chính (Sheet 1):
+ *    [ fileName | status | driveFileId | ocrText | errorMessage | note | bookName | batchId | batchRequestKey ]
  *
- * Hướng dẫn:
+ * 2. Sheet phụ (Sheet "batch_jobs"):
+ *    [ batchId | bookName | submittedAt | status | lastCheckedAt | totalImages | errorMessage ]
+ *
+ * Hướng dẫn thiết lập:
  * 1. Mở file Google Sheet của bạn.
  * 2. Chọn Tiện ích mở rộng (Extensions) > Apps Script.
- * 3. Dán toàn bộ mã nguồn này vào.
+ * 3. Dán toàn bộ mã nguồn này vào file Code.gs.
  * 4. Vào Cài đặt dự án (Project Settings ⚙️) > Script Properties:
  *    - Key: SECRET_TOKEN
  *    - Value: <nhập token bí mật do bạn tự đặt>
@@ -22,7 +26,28 @@
  * hoặc Quản lý bản triển khai > Chỉnh sửa > Chọn Phiên bản mới (New version).
  */
 
-const SHEET_HEADERS = ['fileName', 'status', 'driveFileId', 'ocrText', 'errorMessage', 'note'];
+const MAIN_SHEET_HEADERS = [
+  'fileName',
+  'status',
+  'driveFileId',
+  'ocrText',
+  'errorMessage',
+  'note',
+  'bookName',
+  'batchId',
+  'batchRequestKey',
+];
+
+const BATCH_JOBS_SHEET_NAME = 'batch_jobs';
+const BATCH_JOBS_HEADERS = [
+  'batchId',
+  'bookName',
+  'submittedAt',
+  'status',
+  'lastCheckedAt',
+  'totalImages',
+  'errorMessage',
+];
 
 /**
  * Xử lý khi mở URL trực tiếp trên trình duyệt (GET request)
@@ -33,9 +58,10 @@ function doGet(e) {
 
   return jsonResponse({
     status: 'ok',
-    message: 'Google Apps Script Bridge cho Docker OCR đang hoạt động!',
+    message: 'Google Apps Script Bridge cho Docker OCR (Batch & Realtime) đang hoạt động!',
     secretTokenConfigured: isConfigured,
-    schema: SHEET_HEADERS,
+    mainSchema: MAIN_SHEET_HEADERS,
+    batchJobsSchema: BATCH_JOBS_HEADERS,
     usage: 'Backend Docker OCR sẽ gửi các POST request đến URL này kèm token và action.',
   });
 }
@@ -72,7 +98,19 @@ function doPost(e) {
       case 'appendRow':
         return jsonResponse(appendRow(body.data));
       case 'updateRow':
-        return jsonResponse(updateRow(body.driveFileId || body.hash, body.data));
+        return jsonResponse(
+          updateRow(body.driveFileId || body.hash || body.batchRequestKey, body.data),
+        );
+      case 'batchUpdateRows':
+        return jsonResponse(batchUpdateRows(body.updates));
+      case 'updateRowsByBatchId':
+        return jsonResponse(updateRowsByBatchId(body.batchId, body.data));
+      case 'readBatchJobs':
+        return jsonResponse(readBatchJobs());
+      case 'appendBatchJob':
+        return jsonResponse(appendBatchJob(body.data));
+      case 'updateBatchJob':
+        return jsonResponse(updateBatchJob(body.batchId, body.data));
       default:
         return jsonResponse({ error: 'Unknown action: ' + body.action }, 400);
     }
@@ -88,68 +126,104 @@ function jsonResponse(obj, statusCode) {
 }
 
 /**
- * Đảm bảo header của Google Sheet đã có sẵn
+ * Đảm bảo header của Google Sheet chính và sheet batch_jobs
  */
 function ensureHeader() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const lastRow = sheet.getLastRow();
-  const lastCol = sheet.getLastColumn();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mainSheet = ss.getSheets()[0];
+
+  // 1. Kiểm tra / khởi tạo Main Sheet Headers
+  const lastRow = mainSheet.getLastRow();
+  const lastCol = mainSheet.getLastColumn();
 
   if (lastRow === 0 || lastCol === 0) {
-    sheet.appendRow(SHEET_HEADERS);
-    return { success: true, message: 'Header row created' };
+    mainSheet.appendRow(MAIN_SHEET_HEADERS);
+  } else {
+    // Đọc header hiện có, nếu thiếu các cột mới (bookName, batchId, batchRequestKey) thì append thêm vào dòng 1
+    const currentHeaders = mainSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+    if (currentHeaders.length < MAIN_SHEET_HEADERS.length) {
+      const missingHeaders = MAIN_SHEET_HEADERS.slice(currentHeaders.length);
+      if (missingHeaders.length > 0) {
+        mainSheet
+          .getRange(1, currentHeaders.length + 1, 1, missingHeaders.length)
+          .setValues([missingHeaders]);
+      }
+    }
   }
 
-  // Đọc header hiện có
-  const currentHeaders = sheet
-    .getRange(1, 1, 1, Math.max(lastCol, SHEET_HEADERS.length))
-    .getValues()[0];
-  return { success: true, message: 'Headers OK: ' + currentHeaders.filter(Boolean).join(', ') };
+  // 2. Kiểm tra / khởi tạo Batch Jobs Sheet
+  let batchSheet = ss.getSheetByName(BATCH_JOBS_SHEET_NAME);
+  if (!batchSheet) {
+    batchSheet = ss.insertSheet(BATCH_JOBS_SHEET_NAME);
+    batchSheet.appendRow(BATCH_JOBS_HEADERS);
+  } else if (batchSheet.getLastRow() === 0) {
+    batchSheet.appendRow(BATCH_JOBS_HEADERS);
+  }
+
+  return {
+    success: true,
+    message: 'Headers and sheets ensured successfully',
+    mainSheetHeaders: MAIN_SHEET_HEADERS,
+    batchJobsHeaders: BATCH_JOBS_HEADERS,
+  };
 }
 
 /**
- * Quét danh sách file ảnh trong thư mục Google Drive
+ * Quét danh sách file ảnh trong thư mục Google Drive (Hỗ trợ gom nhóm subfolder = bookName)
  */
 function listImages(folderId) {
   if (!folderId) {
     throw new Error('folderId is required');
   }
 
-  const folder = DriveApp.getFolderById(folderId);
-  const files = folder.getFiles();
+  const rootFolder = DriveApp.getFolderById(folderId);
   const result = [];
 
-  while (files.hasNext()) {
-    const file = files.next();
-    const mimeType = file.getMimeType();
+  function collectImagesFromFolder(folder, bookName) {
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      const mimeType = file.getMimeType();
 
-    if (mimeType && mimeType.indexOf('image/') === 0) {
-      const fileId = file.getId();
-      const fileName = file.getName();
-      const createdTime = file.getDateCreated().toISOString();
+      if (mimeType && mimeType.indexOf('image/') === 0) {
+        const fileId = file.getId();
+        const fileName = file.getName();
+        const createdTime = file.getDateCreated().toISOString();
 
-      // Tính MD5 hash từ nội dung file
-      const bytes = file.getBlob().getBytes();
-      const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, bytes);
-      let md5Checksum = '';
-      for (let i = 0; i < digest.length; i++) {
-        let byteVal = digest[i];
-        if (byteVal < 0) byteVal += 256;
-        const byteHex = byteVal.toString(16);
-        md5Checksum += (byteHex.length === 1 ? '0' : '') + byteHex;
+        // MD5 hash
+        const bytes = file.getBlob().getBytes();
+        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, bytes);
+        let md5Checksum = '';
+        for (let i = 0; i < digest.length; i++) {
+          let byteVal = digest[i];
+          if (byteVal < 0) byteVal += 256;
+          const byteHex = byteVal.toString(16);
+          md5Checksum += (byteHex.length === 1 ? '0' : '') + byteHex;
+        }
+
+        result.push({
+          id: fileId,
+          name: fileName,
+          md5Checksum: md5Checksum || fileId,
+          createdTime: createdTime,
+          mimeType: mimeType,
+          bookName: bookName || 'Default',
+        });
       }
-
-      result.push({
-        id: fileId,
-        name: fileName,
-        md5Checksum: md5Checksum || fileId,
-        createdTime: createdTime,
-        mimeType: mimeType,
-      });
     }
   }
 
-  return { success: true, folderName: folder.getName(), files: result };
+  // 1. Quét các file ở thư mục gốc (bookName = tên thư mục gốc hoặc "Default")
+  collectImagesFromFolder(rootFolder, rootFolder.getName());
+
+  // 2. Quét các thư mục con (mỗi thư mục con là 1 cuốn sách: bookName = tên thư mục con)
+  const subfolders = rootFolder.getFolders();
+  while (subfolders.hasNext()) {
+    const subfolder = subfolders.next();
+    collectImagesFromFolder(subfolder, subfolder.getName());
+  }
+
+  return { success: true, folderName: rootFolder.getName(), files: result };
 }
 
 /**
@@ -173,17 +247,19 @@ function getImageBase64(fileId) {
 }
 
 /**
- * Đọc tất cả các dòng dữ liệu trong Google Sheet theo schema [fileName, status, driveFileId, ocrText, errorMessage, note]
+ * Đọc tất cả các dòng dữ liệu trong Google Sheet chính
  */
 function readSheetRows() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
   const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn(), MAIN_SHEET_HEADERS.length);
 
   if (lastRow <= 1) {
     return { success: true, records: [] };
   }
 
-  const data = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const records = [];
 
   for (let i = 0; i < data.length; i++) {
@@ -197,6 +273,9 @@ function readSheetRows() {
       ocrText: (row[3] || '').toString(),
       errorMessage: (row[4] || '').toString(),
       note: (row[5] || '').toString(),
+      bookName: (row[6] || 'Default').toString(),
+      batchId: (row[7] || '').toString(),
+      batchRequestKey: (row[8] || '').toString(),
       rowIndex: rowIndex,
     });
   }
@@ -205,14 +284,15 @@ function readSheetRows() {
 }
 
 /**
- * Thêm 1 dòng mới vào Google Sheet
+ * Thêm 1 dòng mới vào Google Sheet chính
  */
 function appendRow(item) {
   if (!item) {
     throw new Error('data object is required');
   }
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
   const rowData = [
     item.fileName || item.file_name || '',
     item.status || 'pending',
@@ -220,6 +300,9 @@ function appendRow(item) {
     item.ocrText || item.ocr_text || '',
     item.errorMessage || item.error_message || '',
     item.note || item.hash || '',
+    item.bookName || item.book_name || 'Default',
+    item.batchId || item.batch_id || '',
+    item.batchRequestKey || item.batch_request_key || '',
   ];
 
   sheet.appendRow(rowData);
@@ -228,30 +311,33 @@ function appendRow(item) {
 }
 
 /**
- * Cập nhật dòng theo driveFileId (Cột C) hoặc hash trong note (Cột F)
+ * Cập nhật 1 dòng trong sheet chính theo driveFileId / note / batchRequestKey
  */
 function updateRow(identifier, updateFields) {
   if (!identifier) {
-    throw new Error('identifier (driveFileId or hash) is required for updateRow');
+    throw new Error('identifier is required for updateRow');
   }
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
     return { success: false, error: 'Sheet has no data rows' };
   }
 
-  // Đọc dữ liệu cột driveFileId (Cột C) và cột note (Cột F)
-  const allValues = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+  const colCount = MAIN_SHEET_HEADERS.length;
+  const allValues = sheet.getRange(2, 1, lastRow - 1, colCount).getValues();
   let targetRowIndex = -1;
 
   for (let i = 0; i < allValues.length; i++) {
     const rowDriveFileId = (allValues[i][2] || '').toString();
     const rowNote = (allValues[i][5] || '').toString();
     const rowFileName = (allValues[i][0] || '').toString();
+    const rowBatchKey = (allValues[i][8] || '').toString();
 
     if (
       rowDriveFileId === identifier.toString() ||
+      rowBatchKey === identifier.toString() ||
       rowNote === identifier.toString() ||
       rowFileName === identifier.toString()
     ) {
@@ -264,7 +350,7 @@ function updateRow(identifier, updateFields) {
     return { success: false, error: 'Row not found for identifier: ' + identifier };
   }
 
-  const currentRow = sheet.getRange(targetRowIndex, 1, 1, SHEET_HEADERS.length).getValues()[0];
+  const currentRow = sheet.getRange(targetRowIndex, 1, 1, colCount).getValues()[0];
   const updatedRow = [
     updateFields.fileName !== undefined ? updateFields.fileName : currentRow[0],
     updateFields.status !== undefined ? updateFields.status : currentRow[1],
@@ -272,8 +358,218 @@ function updateRow(identifier, updateFields) {
     updateFields.ocrText !== undefined ? updateFields.ocrText : currentRow[3],
     updateFields.errorMessage !== undefined ? updateFields.errorMessage : currentRow[4],
     updateFields.note !== undefined ? updateFields.note : currentRow[5],
+    updateFields.bookName !== undefined ? updateFields.bookName : currentRow[6],
+    updateFields.batchId !== undefined ? updateFields.batchId : currentRow[7],
+    updateFields.batchRequestKey !== undefined ? updateFields.batchRequestKey : currentRow[8],
   ];
 
-  sheet.getRange(targetRowIndex, 1, 1, SHEET_HEADERS.length).setValues([updatedRow]);
+  sheet.getRange(targetRowIndex, 1, 1, colCount).setValues([updatedRow]);
+  return { success: true, rowIndex: targetRowIndex };
+}
+
+/**
+ * Cập nhật nhiều dòng hàng loạt theo danh sách updates [{ identifier, data }]
+ */
+function batchUpdateRows(updates) {
+  if (!updates || !Array.isArray(updates) || updates.length === 0) {
+    return { success: true, updatedCount: 0 };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { success: false, error: 'Sheet has no data rows' };
+  }
+
+  const colCount = MAIN_SHEET_HEADERS.length;
+  const allValues = sheet.getRange(2, 1, lastRow - 1, colCount).getValues();
+
+  // Index map: key -> row index in allValues (0-based)
+  const mapKeyToRow = new Map();
+  for (let i = 0; i < allValues.length; i++) {
+    const driveId = (allValues[i][2] || '').toString();
+    const batchKey = (allValues[i][8] || '').toString();
+    const fileName = (allValues[i][0] || '').toString();
+
+    if (driveId) mapKeyToRow.set(driveId, i);
+    if (batchKey) mapKeyToRow.set(batchKey, i);
+    if (fileName) mapKeyToRow.set(fileName, i);
+  }
+
+  let updatedCount = 0;
+  for (let u = 0; u < updates.length; u++) {
+    const item = updates[u];
+    const targetIdx = mapKeyToRow.get(item.identifier?.toString());
+    if (targetIdx !== undefined) {
+      const cur = allValues[targetIdx];
+      const patch = item.data || {};
+
+      if (patch.fileName !== undefined) cur[0] = patch.fileName;
+      if (patch.status !== undefined) cur[1] = patch.status;
+      if (patch.driveFileId !== undefined) cur[2] = patch.driveFileId;
+      if (patch.ocrText !== undefined) cur[3] = patch.ocrText;
+      if (patch.errorMessage !== undefined) cur[4] = patch.errorMessage;
+      if (patch.note !== undefined) cur[5] = patch.note;
+      if (patch.bookName !== undefined) cur[6] = patch.bookName;
+      if (patch.batchId !== undefined) cur[7] = patch.batchId;
+      if (patch.batchRequestKey !== undefined) cur[8] = patch.batchRequestKey;
+
+      updatedCount++;
+    }
+  }
+
+  if (updatedCount > 0) {
+    sheet.getRange(2, 1, lastRow - 1, colCount).setValues(allValues);
+  }
+
+  return { success: true, updatedCount: updatedCount };
+}
+
+/**
+ * Cập nhật toàn bộ các dòng thuộc cùng 1 batchId trong sheet chính
+ */
+function updateRowsByBatchId(batchId, updateFields) {
+  if (!batchId) {
+    throw new Error('batchId is required');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { success: true, updatedCount: 0 };
+  }
+
+  const colCount = MAIN_SHEET_HEADERS.length;
+  const allValues = sheet.getRange(2, 1, lastRow - 1, colCount).getValues();
+  let updatedCount = 0;
+
+  for (let i = 0; i < allValues.length; i++) {
+    const rowBatchId = (allValues[i][7] || '').toString();
+    if (rowBatchId === batchId.toString()) {
+      if (updateFields.status !== undefined) allValues[i][1] = updateFields.status;
+      if (updateFields.errorMessage !== undefined) allValues[i][4] = updateFields.errorMessage;
+      if (updateFields.ocrText !== undefined) allValues[i][3] = updateFields.ocrText;
+      updatedCount++;
+    }
+  }
+
+  if (updatedCount > 0) {
+    sheet.getRange(2, 1, lastRow - 1, colCount).setValues(allValues);
+  }
+
+  return { success: true, updatedCount: updatedCount };
+}
+
+/**
+ * Đọc tất cả các dòng từ sheet "batch_jobs"
+ */
+function readBatchJobs() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(BATCH_JOBS_SHEET_NAME);
+  if (!sheet) {
+    return { success: true, records: [] };
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { success: true, records: [] };
+  }
+
+  const data = sheet.getRange(2, 1, lastRow - 1, BATCH_JOBS_HEADERS.length).getValues();
+  const records = [];
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    records.push({
+      batchId: (row[0] || '').toString(),
+      bookName: (row[1] || '').toString(),
+      submittedAt: (row[2] || '').toString(),
+      status: (row[3] || 'pending').toString(),
+      lastCheckedAt: (row[4] || '').toString(),
+      totalImages: parseInt((row[5] || '0').toString(), 10) || 0,
+      errorMessage: (row[6] || '').toString(),
+      rowIndex: i + 2,
+    });
+  }
+
+  return { success: true, records: records };
+}
+
+/**
+ * Thêm 1 dòng batch job mới vào sheet "batch_jobs"
+ */
+function appendBatchJob(item) {
+  if (!item) {
+    throw new Error('batch job data is required');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(BATCH_JOBS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(BATCH_JOBS_SHEET_NAME);
+    sheet.appendRow(BATCH_JOBS_HEADERS);
+  }
+
+  const rowData = [
+    item.batchId || item.batch_id || '',
+    item.bookName || item.book_name || '',
+    item.submittedAt || item.submitted_at || new Date().toISOString(),
+    item.status || 'pending',
+    item.lastCheckedAt || item.last_checked_at || new Date().toISOString(),
+    item.totalImages || item.total_images || 0,
+    item.errorMessage || item.error_message || '',
+  ];
+
+  sheet.appendRow(rowData);
+  return { success: true, rowIndex: sheet.getLastRow() };
+}
+
+/**
+ * Cập nhật trạng thái batch job trong sheet "batch_jobs" theo batchId
+ */
+function updateBatchJob(batchId, updateFields) {
+  if (!batchId) {
+    throw new Error('batchId is required');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(BATCH_JOBS_SHEET_NAME);
+  if (!sheet) {
+    return { success: false, error: 'batch_jobs sheet not found' };
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { success: false, error: 'No batch jobs found' };
+  }
+
+  const data = sheet.getRange(2, 1, lastRow - 1, BATCH_JOBS_HEADERS.length).getValues();
+  let targetRowIndex = -1;
+
+  for (let i = 0; i < data.length; i++) {
+    if ((data[i][0] || '').toString() === batchId.toString()) {
+      targetRowIndex = i + 2;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    return { success: false, error: 'Batch job not found for batchId: ' + batchId };
+  }
+
+  const cur = sheet.getRange(targetRowIndex, 1, 1, BATCH_JOBS_HEADERS.length).getValues()[0];
+  const updatedRow = [
+    updateFields.batchId !== undefined ? updateFields.batchId : cur[0],
+    updateFields.bookName !== undefined ? updateFields.bookName : cur[1],
+    updateFields.submittedAt !== undefined ? updateFields.submittedAt : cur[2],
+    updateFields.status !== undefined ? updateFields.status : cur[3],
+    updateFields.lastCheckedAt !== undefined ? updateFields.lastCheckedAt : cur[4],
+    updateFields.totalImages !== undefined ? updateFields.totalImages : cur[5],
+    updateFields.errorMessage !== undefined ? updateFields.errorMessage : cur[6],
+  ];
+
+  sheet.getRange(targetRowIndex, 1, 1, BATCH_JOBS_HEADERS.length).setValues([updatedRow]);
   return { success: true, rowIndex: targetRowIndex };
 }

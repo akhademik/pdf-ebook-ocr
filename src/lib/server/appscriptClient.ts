@@ -1,4 +1,4 @@
-import type { DriveFileItem, SheetRecord } from '$lib/types/ocr.js';
+import type { DriveFileItem, SheetRecord, BatchJobRecord } from '$lib/types/ocr.js';
 import { logger } from './logger.js';
 
 export class AppscriptClient {
@@ -69,7 +69,7 @@ export class AppscriptClient {
   }
 
   /**
-   * List all image files in the Google Drive folder.
+   * List all image files in the Google Drive folder (including subfolders as books).
    */
   async listImages(folderId: string): Promise<{ folderName: string; files: DriveFileItem[] }> {
     return this.callAction<{ folderName: string; files: DriveFileItem[] }>('listImages', {
@@ -117,6 +117,62 @@ export class AppscriptClient {
   ): Promise<{ success: boolean; rowIndex?: number }> {
     return this.callAction<{ success: boolean; rowIndex?: number }>('updateRow', {
       driveFileId,
+      data: updateFields,
+    });
+  }
+
+  /**
+   * Batch update multiple rows at once.
+   */
+  async batchUpdateRows(
+    updates: { identifier: string; data: Partial<SheetRecord> }[],
+  ): Promise<{ success: boolean; updatedCount: number }> {
+    return this.callAction<{ success: boolean; updatedCount: number }>('batchUpdateRows', {
+      updates,
+    });
+  }
+
+  /**
+   * Update all rows matching a batchId.
+   */
+  async updateRowsByBatchId(
+    batchId: string,
+    updateFields: Partial<SheetRecord>,
+  ): Promise<{ success: boolean; updatedCount: number }> {
+    return this.callAction<{ success: boolean; updatedCount: number }>('updateRowsByBatchId', {
+      batchId,
+      data: updateFields,
+    });
+  }
+
+  /**
+   * Read all batch job records from sheet "batch_jobs".
+   */
+  async readBatchJobs(): Promise<BatchJobRecord[]> {
+    const res = await this.callAction<{ success: boolean; records: BatchJobRecord[] }>(
+      'readBatchJobs',
+    );
+    return res.records || [];
+  }
+
+  /**
+   * Append a batch job record to sheet "batch_jobs".
+   */
+  async appendBatchJob(job: BatchJobRecord): Promise<{ success: boolean; rowIndex: number }> {
+    return this.callAction<{ success: boolean; rowIndex: number }>('appendBatchJob', {
+      data: job,
+    });
+  }
+
+  /**
+   * Update a batch job record on sheet "batch_jobs".
+   */
+  async updateBatchJob(
+    batchId: string,
+    updateFields: Partial<BatchJobRecord>,
+  ): Promise<{ success: boolean; rowIndex?: number }> {
+    return this.callAction<{ success: boolean; rowIndex?: number }>('updateBatchJob', {
+      batchId,
       data: updateFields,
     });
   }

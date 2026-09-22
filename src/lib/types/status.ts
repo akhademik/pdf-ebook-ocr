@@ -1,4 +1,4 @@
-import type { SheetRecord, SyncSummary } from './ocr.js';
+import type { SheetRecord, SyncSummary, BatchJobRecord } from './ocr.js';
 import type { SetupCheckResult, GeminiModelInfo } from './config.js';
 
 export interface SystemStatusResponse {
@@ -13,10 +13,15 @@ export interface SystemStatusResponse {
   appscriptWebAppUrl: string;
   hasAppscriptSecret: boolean;
   hasGeminiKey: boolean;
+  useBatchMode: boolean;
+  batchWaitBeforeSubmitMinutes: number;
+  batchPollIntervalMinutes: number;
+  batchMaxImagesPerJob: number;
   isSyncing: boolean;
   lastSyncSummary: SyncSummary | null;
   lastSyncTime: string | null;
   lastSetupCheck: SetupCheckResult | null;
   records: SheetRecord[];
+  batchJobs: BatchJobRecord[];
   recentLogs: string[];
 }

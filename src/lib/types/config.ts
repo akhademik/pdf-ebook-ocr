@@ -15,6 +15,10 @@ export interface AppConfig {
   maxConcurrency: number;
   outputDir: string;
   pageOrderRegex?: RegExp;
+  useBatchMode: boolean;
+  batchWaitBeforeSubmitMinutes: number;
+  batchPollIntervalMinutes: number;
+  batchMaxImagesPerJob: number;
 }
 
 export interface SetupCheckStep {

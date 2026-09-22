@@ -23,6 +23,7 @@ describe('config', () => {
     process.env.APPSCRIPT_SECRET = 'secret123';
     process.env.DRIVE_FOLDER_ID = 'test_folder_id';
     process.env.GEMINI_API_KEY = 'test_gemini_key';
+    process.env.USE_BATCH_MODE = 'true';
 
     const config = loadConfig();
     expect(config.appscriptWebAppUrl).toBe('https://script.google.com/macros/s/test/exec');
@@ -30,6 +31,10 @@ describe('config', () => {
     expect(config.driveFolderId).toBe('test_folder_id');
     expect(config.geminiApiKey).toBe('test_gemini_key');
     expect(config.geminiModel).toBe('gemini-3.5-flash-lite');
+    expect(config.useBatchMode).toBe(true);
+    expect(config.batchWaitBeforeSubmitMinutes).toBe(10);
+    expect(config.batchPollIntervalMinutes).toBe(20);
+    expect(config.batchMaxImagesPerJob).toBe(300);
     expect(config.pollIntervalMinutes).toBe(5);
     expect(config.maxConcurrency).toBe(3);
     expect(config.outputDir).toBe('./output');

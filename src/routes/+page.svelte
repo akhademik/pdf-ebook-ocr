@@ -4,6 +4,7 @@
   import StatsCards from '$lib/components/StatsCards.svelte';
   import SetupStatusCard from '$lib/components/SetupStatusCard.svelte';
   import SyncActionPanel from '$lib/components/SyncActionPanel.svelte';
+  import BatchJobsTable from '$lib/components/BatchJobsTable.svelte';
   import FileTable from '$lib/components/FileTable.svelte';
   import OcrPreviewModal from '$lib/components/OcrPreviewModal.svelte';
   import PromptEditorModal from '$lib/components/PromptEditorModal.svelte';
@@ -24,17 +25,23 @@
     appscriptWebAppUrl: '',
     hasAppscriptSecret: false,
     hasGeminiKey: false,
+    useBatchMode: false,
+    batchWaitBeforeSubmitMinutes: 10,
+    batchPollIntervalMinutes: 20,
+    batchMaxImagesPerJob: 300,
     isSyncing: false,
     lastSyncSummary: null,
     lastSyncTime: null,
     lastSetupCheck: null,
     records: [],
+    batchJobs: [],
     recentLogs: [],
   });
 
   let isRefreshing = $state(false);
   let isRunningCheck = $state(false);
   let isSyncing = $state(false);
+  let isPollingBatches = $state(false);
   let isPromptEditorOpen = $state(false);
   let selectedRecord = $state<SheetRecord | null>(null);
   let processingFileId = $state<string | null>(null);
@@ -85,10 +92,29 @@
   async function handleRunSync() {
     isSyncing = true;
     try {
-      await fetch('/api/sync', { method: 'POST' });
+      const action = statusData.useBatchMode ? 'submit' : 'sync';
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
       await fetchStatus();
     } finally {
       isSyncing = false;
+    }
+  }
+
+  async function handlePollBatches() {
+    isPollingBatches = true;
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'poll' }),
+      });
+      await fetchStatus();
+    } finally {
+      isPollingBatches = false;
     }
   }
 
@@ -96,7 +122,7 @@
     try {
       const res = await fetch('/api/export');
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Không thể xuất ZIP' }));
+        const errorData = (await res.json().catch(() => ({ error: 'Không thể xuất ZIP' }))) as { error?: string };
         throw new Error(errorData.error || 'Lỗi khi xuất file ZIP');
       }
 
@@ -132,7 +158,7 @@
     try {
       const res = await fetch(`/api/files/${fileId}/ocr`, { method: 'POST' });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { record: SheetRecord };
         if (selectedRecord && selectedRecord.driveFileId === fileId) {
           selectedRecord = data.record;
         }
@@ -183,11 +209,23 @@
       outputDir={statusData.outputDir}
       geminiModel={statusData.geminiModel}
       availableModels={statusData.availableModels}
+      useBatchMode={statusData.useBatchMode}
+      batchPollIntervalMinutes={statusData.batchPollIntervalMinutes}
+      isPolling={isPollingBatches}
       onModelChange={handleModelChange}
       onRunSync={handleRunSync}
+      onPollBatches={handlePollBatches}
       onExportMarkdown={handleExportMarkdown}
     />
   </div>
+
+  {#if statusData.useBatchMode || (statusData.batchJobs && statusData.batchJobs.length > 0)}
+    <BatchJobsTable
+      batchJobs={statusData.batchJobs}
+      onPollBatches={handlePollBatches}
+      isPolling={isPollingBatches}
+    />
+  {/if}
 
   <FileTable
     records={statusData.records}
@@ -210,4 +248,3 @@
   isOpen={isPromptEditorOpen}
   onClose={() => (isPromptEditorOpen = false)}
 />
-

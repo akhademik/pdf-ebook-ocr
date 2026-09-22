@@ -2,28 +2,35 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs/promises';
 import { SyncService } from '../src/lib/server/syncService.js';
 import type { AppConfig } from '../src/lib/types/config.js';
-import type { SheetRecord } from '../src/lib/types/ocr.js';
+import type { SheetRecord, BatchJobRecord } from '../src/lib/types/ocr.js';
 
-describe('syncService (Custom Sheet Schema)', () => {
+describe('syncService (Custom Sheet Schema & Batch Mode)', () => {
   const testOutputDir = './tests/temp_output_sync';
   const mockConfig: AppConfig = {
     appscriptWebAppUrl: 'https://script.google.com/macros/s/test/exec',
     appscriptSecret: 'secret123',
     driveFolderId: 'folder123',
     geminiApiKey: 'test_key',
-    geminiModel: 'gemini-1.5-flash',
+    geminiModel: 'gemini-3.5-flash-lite',
     pollIntervalMinutes: 5,
     maxConcurrency: 2,
     outputDir: testOutputDir,
+    useBatchMode: false,
+    batchWaitBeforeSubmitMinutes: 10,
+    batchPollIntervalMinutes: 20,
+    batchMaxImagesPerJob: 300,
   };
 
   let mockAppscriptClient: any;
   let mockGeminiClient: any;
+  let mockGeminiBatchClient: any;
   let sheetDb: SheetRecord[];
+  let batchJobsDb: BatchJobRecord[];
 
   beforeEach(async () => {
     await fs.rm(testOutputDir, { recursive: true, force: true });
     sheetDb = [];
+    batchJobsDb = [];
 
     mockAppscriptClient = {
       listImages: vi.fn().mockResolvedValue({
@@ -36,6 +43,7 @@ describe('syncService (Custom Sheet Schema)', () => {
             md5Checksum: 'hash1',
             createdTime: '2026-01-01T00:00:00Z',
             mimeType: 'image/jpeg',
+            bookName: 'BookA',
           },
         ],
       }),
@@ -54,15 +62,64 @@ describe('syncService (Custom Sheet Schema)', () => {
         }
         return { success: false, error: 'not found' };
       }),
+      batchUpdateRows: vi.fn().mockImplementation(async (updates: any[]) => {
+        for (const u of updates) {
+          const index = sheetDb.findIndex((r) => r.driveFileId === u.identifier);
+          if (index !== -1) {
+            sheetDb[index] = { ...sheetDb[index], ...u.data };
+          }
+        }
+        return { success: true, updatedCount: updates.length };
+      }),
+      updateRowsByBatchId: vi.fn().mockImplementation(async (batchId: string, patch: any) => {
+        for (const row of sheetDb) {
+          if (row.batchId === batchId) {
+            Object.assign(row, patch);
+          }
+        }
+        return { success: true, updatedCount: 1 };
+      }),
       getImageBase64: vi.fn().mockResolvedValue({
         base64: 'fake-image-base64',
         mimeType: 'image/jpeg',
         fileName: '001_scan.jpg',
       }),
+      readBatchJobs: vi.fn().mockImplementation(async () => {
+        return batchJobsDb;
+      }),
+      appendBatchJob: vi.fn().mockImplementation(async (job: BatchJobRecord) => {
+        batchJobsDb.push(job);
+        return { success: true, rowIndex: batchJobsDb.length + 1 };
+      }),
+      updateBatchJob: vi.fn().mockImplementation(async (batchId: string, patch: any) => {
+        const index = batchJobsDb.findIndex((j) => j.batchId === batchId);
+        if (index !== -1) {
+          batchJobsDb[index] = { ...batchJobsDb[index], ...patch };
+          return { success: true };
+        }
+        return { success: false, error: 'not found' };
+      }),
     };
 
     mockGeminiClient = {
       performOcr: vi.fn().mockResolvedValue('Extracted Text from Page 1'),
+      getPrompt: vi.fn().mockReturnValue('Default Prompt'),
+      getModelName: vi.fn().mockReturnValue('gemini-3.5-flash-lite'),
+    };
+
+    mockGeminiBatchClient = {
+      submitBatchJob: vi.fn().mockResolvedValue({
+        batchId: 'batches/job-123',
+        totalImages: 1,
+      }),
+      checkBatchStatus: vi.fn().mockResolvedValue({
+        batchId: 'batches/job-123',
+        state: 'completed',
+        outputUri: 'files/result123',
+      }),
+      fetchBatchResults: vi
+        .fn()
+        .mockResolvedValue(new Map([['file1', { key: 'file1', ocrText: 'Batch Extracted Text' }]])),
     };
   });
 
@@ -70,8 +127,13 @@ describe('syncService (Custom Sheet Schema)', () => {
     await fs.rm(testOutputDir, { recursive: true, force: true });
   });
 
-  it('should process pending file via Apps Script, call OCR, update sheet to done and export markdown', async () => {
-    const service = new SyncService(mockConfig, mockAppscriptClient, mockGeminiClient);
+  it('should process pending file via Apps Script in Direct Realtime mode', async () => {
+    const service = new SyncService(
+      mockConfig,
+      mockAppscriptClient,
+      mockGeminiClient,
+      mockGeminiBatchClient,
+    );
 
     const summary = await service.runSyncCycle();
     expect(summary.discovered).toBe(1);
@@ -83,24 +145,68 @@ describe('syncService (Custom Sheet Schema)', () => {
     expect(sheetDb[0].ocrText).toBe('Extracted Text from Page 1');
   });
 
-  it('should skip already done records on subsequent cycles', async () => {
-    sheetDb = [
+  it('should submit batches grouped by book in Batch Mode', async () => {
+    const batchConfig: AppConfig = { ...mockConfig, useBatchMode: true };
+    const service = new SyncService(
+      batchConfig,
+      mockAppscriptClient,
+      mockGeminiClient,
+      mockGeminiBatchClient,
+    );
+
+    const summary = await service.submitPendingBatches();
+    expect(summary.discovered).toBe(1);
+    expect(summary.succeeded).toBe(1);
+
+    expect(mockGeminiBatchClient.submitBatchJob).toHaveBeenCalled();
+    expect(batchJobsDb.length).toBe(1);
+    expect(batchJobsDb[0].batchId).toBe('batches/job-123');
+    expect(batchJobsDb[0].bookName).toBe('BookA');
+
+    expect(sheetDb[0].status).toBe('batch_submitted');
+    expect(sheetDb[0].batchId).toBe('batches/job-123');
+  });
+
+  it('should poll running batches and update results when completed', async () => {
+    batchJobsDb = [
       {
-        fileName: '001_scan.jpg',
-        status: 'done',
-        driveFileId: 'file1',
-        ocrText: 'Already done',
-        errorMessage: '',
-        note: 'hash1',
-        rowIndex: 2,
+        batchId: 'batches/job-123',
+        bookName: 'BookA',
+        submittedAt: new Date().toISOString(),
+        status: 'pending',
+        lastCheckedAt: new Date().toISOString(),
+        totalImages: 1,
       },
     ];
 
-    const service = new SyncService(mockConfig, mockAppscriptClient, mockGeminiClient);
+    sheetDb = [
+      {
+        fileName: '001_scan.jpg',
+        status: 'batch_submitted',
+        driveFileId: 'file1',
+        ocrText: '',
+        errorMessage: '',
+        note: '',
+        bookName: 'BookA',
+        batchId: 'batches/job-123',
+        batchRequestKey: 'file1',
+      },
+    ];
 
-    const summary = await service.runSyncCycle();
-    expect(summary.discovered).toBe(0);
-    expect(summary.skipped).toBe(1);
-    expect(mockGeminiClient.performOcr).not.toHaveBeenCalled();
+    const batchConfig: AppConfig = { ...mockConfig, useBatchMode: true };
+    const service = new SyncService(
+      batchConfig,
+      mockAppscriptClient,
+      mockGeminiClient,
+      mockGeminiBatchClient,
+    );
+
+    const pollStats = await service.pollRunningBatches();
+    expect(pollStats.polled).toBe(1);
+    expect(pollStats.completed).toBe(1);
+
+    expect(batchJobsDb[0].status).toBe('completed');
+    expect(sheetDb[0].status).toBe('done');
+    expect(sheetDb[0].ocrText).toBe('Batch Extracted Text');
   });
 });

@@ -23,6 +23,17 @@ export function loadConfig(): AppConfig {
   const outputDir = process.env.OUTPUT_DIR?.trim() || './output';
   const pageOrderRegexStr = process.env.PAGE_ORDER_REGEX?.trim();
 
+  const useBatchMode = process.env.USE_BATCH_MODE?.trim().toLowerCase() === 'true';
+  const batchWaitBeforeSubmitMinutes = parseInt(
+    process.env.BATCH_WAIT_BEFORE_SUBMIT_MINUTES?.trim() || '10',
+    10,
+  );
+  const batchPollIntervalMinutes = parseInt(
+    process.env.BATCH_POLL_INTERVAL_MINUTES?.trim() || '20',
+    10,
+  );
+  const batchMaxImagesPerJob = parseInt(process.env.BATCH_MAX_IMAGES_PER_JOB?.trim() || '300', 10);
+
   const missingFields = getMissingEnvVars();
   if (missingFields.length > 0) {
     throw new Error(`Missing required environment variables: ${missingFields.join(', ')}`);
@@ -48,5 +59,16 @@ export function loadConfig(): AppConfig {
     maxConcurrency: isNaN(maxConcurrency) || maxConcurrency < 1 ? 3 : maxConcurrency,
     outputDir,
     pageOrderRegex,
+    useBatchMode,
+    batchWaitBeforeSubmitMinutes:
+      isNaN(batchWaitBeforeSubmitMinutes) || batchWaitBeforeSubmitMinutes < 0
+        ? 10
+        : batchWaitBeforeSubmitMinutes,
+    batchPollIntervalMinutes:
+      isNaN(batchPollIntervalMinutes) || batchPollIntervalMinutes < 1
+        ? 20
+        : batchPollIntervalMinutes,
+    batchMaxImagesPerJob:
+      isNaN(batchMaxImagesPerJob) || batchMaxImagesPerJob < 1 ? 300 : batchMaxImagesPerJob,
   };
 }
