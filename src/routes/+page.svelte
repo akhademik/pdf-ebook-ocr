@@ -23,7 +23,7 @@
     pollIntervalMinutes: 5,
     maxConcurrency: 3,
     outputDir: './output',
-    geminiModel: 'gemini-2.5-flash',
+    geminiModel: 'gemini-3.6-flash',
     availableModels: [],
     driveFolderId: '',
     appscriptWebAppUrl: '',

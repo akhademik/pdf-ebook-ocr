@@ -74,7 +74,7 @@ DRIVE_FOLDER_ID=1a2b3c4d5e6f7g8h9i0jKLMNOP
 
 # 3. Gemini API Key (Lấy tại https://aistudio.google.com/apikey)
 GEMINI_API_KEY=AIzaSy...
-GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.6-flash
 
 # 4. Cấu hình Batch API (tiết kiệm 50% chi phí)
 USE_BATCH_MODE=true
@@ -166,6 +166,15 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Cập nhật Model sang gemini-3.6-flash theo chuẩn Google AI)
+
+- **Thêm/sửa**:
+  - Chuyển đổi model mặc định sang **`gemini-3.6-flash`** (thay thế model cũ không còn cấp phép cho người dùng mới).
+  - Cập nhật danh sách model Flash khả dụng: `gemini-3.6-flash`, `gemini-3.8-flash`, `gemini-3.6-flash-lite`.
+  - Cập nhật toàn bộ cấu hình mẫu trong `.env.example`, `README.md` và các test suites (24/24 pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (24/24 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/server/config.ts`](src/lib/server/config.ts), [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/routes/+page.svelte`](src/routes/+page.svelte), [`.env.example`](.env.example), [`README.md`](README.md).
 
 ### 2026-09-22 (Sửa lỗi Gemini Batch API endpoint & payload format)
 

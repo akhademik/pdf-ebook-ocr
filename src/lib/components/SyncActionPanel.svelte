@@ -168,7 +168,7 @@
     >
       {#if useBatchMode}
         <Send class="w-4 h-4 {isSyncing ? 'animate-bounce' : ''}" />
-        <span>{isSyncing ? 'Đang gửi batch...' : 'Gom & Gửi Tất Cả Sách'}</span>
+        <span>{isSyncing ? 'Đang gửi batch...' : 'Gửi Tất Cả Sách'}</span>
       {:else}
         <RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
         <span>{isSyncing ? 'Đang OCR...' : 'Chạy OCR Ngay'}</span>

@@ -24,11 +24,11 @@ describe('GeminiClient Prompt & Models', () => {
 
   it('should restrict allowed models strictly to verified Flash models', () => {
     const ids = ALLOWED_FLASH_MODELS.map((m) => m.id);
-    expect(ids).toEqual(['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']);
+    expect(ids).toEqual(['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.6-flash-lite']);
   });
 
   it('should use default prompt if no custom prompt provided, and switch when custom prompt is set', () => {
-    const client = new GeminiClient('test-key', 'gemini-2.5-flash');
+    const client = new GeminiClient('test-key', 'gemini-3.6-flash');
     expect(client.getPrompt()).toBe(DEFAULT_OCR_PROMPT);
     expect(client.getCustomPrompt()).toBe('');
 

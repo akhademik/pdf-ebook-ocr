@@ -30,7 +30,7 @@ describe('config', () => {
     expect(config.appscriptSecret).toBe('secret123');
     expect(config.driveFolderId).toBe('test_folder_id');
     expect(config.geminiApiKey).toBe('test_gemini_key');
-    expect(config.geminiModel).toBe('gemini-2.5-flash');
+    expect(config.geminiModel).toBe('gemini-3.6-flash');
     expect(config.useBatchMode).toBe(true);
     expect(config.batchWaitBeforeSubmitMinutes).toBe(10);
     expect(config.batchPollIntervalMinutes).toBe(20);

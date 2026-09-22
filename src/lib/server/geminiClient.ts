@@ -33,22 +33,22 @@ export interface GeminiModelInfo {
 
 export const ALLOWED_FLASH_MODELS: GeminiModelInfo[] = [
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    displayName: 'Gemini 2.5 Flash (Mặc định)',
-    description: 'Thế hệ 2.5 Flash tối ưu tốc độ và chi phí cho tác vụ OCR',
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    displayName: 'Gemini 3.6 Flash (Mặc định)',
+    description: 'Thế hệ 3.6 Flash khuyến nghị bởi Google AI cho các tính năng mới nhất',
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    displayName: 'Gemini 2.0 Flash',
-    description: 'Thế hệ 2.0 Flash',
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    displayName: 'Gemini 3.8 Flash',
+    description: 'Thế hệ 3.8 Flash',
   },
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    displayName: 'Gemini 1.5 Flash',
-    description: 'Thế hệ 1.5 Flash',
+    id: 'gemini-3.6-flash-lite',
+    name: 'Gemini 3.6 Flash Lite',
+    displayName: 'Gemini 3.6 Flash Lite',
+    description: 'Thế hệ 3.6 Flash Lite',
   },
 ];
 
@@ -58,10 +58,10 @@ export class GeminiClient {
   private modelName: string;
   private customPrompt: string = '';
 
-  constructor(apiKey: string, modelName: string = 'gemini-2.5-flash', customPrompt: string = '') {
+  constructor(apiKey: string, modelName: string = 'gemini-3.6-flash', customPrompt: string = '') {
     this.apiKey = apiKey.trim();
     this.ai = new GoogleGenAI({ apiKey: this.apiKey });
-    this.modelName = modelName.trim() || 'gemini-2.5-flash';
+    this.modelName = modelName.trim() || 'gemini-3.6-flash';
     this.customPrompt = customPrompt.trim();
   }
 

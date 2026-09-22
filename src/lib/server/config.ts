@@ -17,7 +17,7 @@ export function loadConfig(): AppConfig {
   const appscriptSecret = process.env.APPSCRIPT_SECRET?.trim();
   const driveFolderId = process.env.DRIVE_FOLDER_ID?.trim();
   const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
-  const geminiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+  const geminiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
   const pollIntervalMinutes = parseInt(process.env.POLL_INTERVAL_MINUTES?.trim() || '5', 10);
   const maxConcurrency = parseInt(process.env.MAX_CONCURRENCY?.trim() || '3', 10);
   const outputDir = process.env.OUTPUT_DIR?.trim() || './output';

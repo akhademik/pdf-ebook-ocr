@@ -25,7 +25,7 @@ describe('GeminiBatchClient', () => {
     });
 
     const result = await client.submitBatchJob(
-      'gemini-2.5-flash',
+      'gemini-3.6-flash',
       [
         { key: 'file1', base64: 'base64_data_1', mimeType: 'image/jpeg' },
         { key: 'file2', base64: 'base64_data_2', mimeType: 'image/png' },
@@ -41,7 +41,7 @@ describe('GeminiBatchClient', () => {
     // Verify 2nd call (batch creation)
     const [createUrl, createOptions] = mockFetch.mock.calls[1] as [string, RequestInit];
     expect(createUrl).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:batchGenerateContent?key=test_api_key',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:batchGenerateContent?key=test_api_key',
     );
     expect(createOptions.method).toBe('POST');
 
@@ -72,7 +72,7 @@ describe('GeminiBatchClient', () => {
 
     await expect(
       client.submitBatchJob(
-        'gemini-2.5-flash',
+        'gemini-3.6-flash',
         [{ key: 'file1', base64: 'base64_data_1', mimeType: 'image/jpeg' }],
         'Sample prompt',
         'TestBook',
