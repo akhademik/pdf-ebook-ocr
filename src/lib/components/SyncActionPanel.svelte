@@ -5,17 +5,18 @@
 
   interface Props {
     isSyncing: boolean;
+    isScanning?: boolean;
     lastSyncSummary: SyncSummary | null;
     lastSyncTime: string | null;
     pollIntervalMinutes: number;
     maxConcurrency: number;
-    outputDir: string;
     geminiModel: string;
     availableModels: GeminiModelInfo[];
     useBatchMode: boolean;
     batchPollIntervalMinutes: number;
     isPolling?: boolean;
     onModelChange: (model: string) => void;
+    onScanDrive?: () => void;
     onRunSync: () => void;
     onPollBatches?: () => void;
     onExportMarkdown: () => void;
@@ -23,6 +24,7 @@
 
   let {
     isSyncing,
+    isScanning = false,
     lastSyncSummary,
     lastSyncTime,
     pollIntervalMinutes,
@@ -33,6 +35,7 @@
     batchPollIntervalMinutes,
     isPolling = false,
     onModelChange,
+    onScanDrive,
     onRunSync,
     onPollBatches,
     onExportMarkdown,
@@ -144,25 +147,38 @@
   </div>
 
   <div class="mt-5 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2.5">
+    {#if onScanDrive}
+      <button
+        onclick={onScanDrive}
+        disabled={isScanning || isSyncing}
+        type="button"
+        class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+        title="Quét Google Drive tìm ảnh mới và lưu vào Sheet (chưa chạy OCR)"
+      >
+        <RefreshCw class="w-3.5 h-3.5 {isScanning ? 'animate-spin text-indigo-400' : 'text-indigo-400'}" />
+        <span>{isScanning ? 'Đang quét Drive...' : 'Quét Google Drive'}</span>
+      </button>
+    {/if}
+
     <button
       onclick={onRunSync}
-      disabled={isSyncing}
+      disabled={isSyncing || isScanning}
       type="button"
       class="flex-1 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 shadow-xs min-w-[140px]"
     >
       {#if useBatchMode}
         <Send class="w-4 h-4 {isSyncing ? 'animate-bounce' : ''}" />
-        <span>{isSyncing ? 'Đang gom & gửi...' : 'Gom & Gửi Batch Ngay'}</span>
+        <span>{isSyncing ? 'Đang gửi batch...' : 'Gom & Gửi Tất Cả Sách'}</span>
       {:else}
         <RefreshCw class="w-4 h-4 {isSyncing ? 'animate-spin' : ''}" />
-        <span>{isSyncing ? 'Đang đồng bộ OCR...' : 'Chạy Sync Ngay'}</span>
+        <span>{isSyncing ? 'Đang OCR...' : 'Chạy OCR Ngay'}</span>
       {/if}
     </button>
 
     {#if useBatchMode && onPollBatches}
       <button
         onclick={onPollBatches}
-        disabled={isPolling}
+        disabled={isPolling || isSyncing}
         type="button"
         class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
         title="Kiểm tra trạng thái các batch job đang chờ trên Gemini"
@@ -179,7 +195,7 @@
       title="Tải toàn bộ kết quả OCR dạng tệp .zip (chứa page1.md, page2.md...)"
     >
       <Download class="w-4 h-4" />
-      <span>Tải ZIP Markdown</span>
+      <span>Tải ZIP</span>
     </button>
   </div>
 </div>

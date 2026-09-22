@@ -41,6 +41,64 @@ export class SyncService {
   }
 
   /**
+   * Scan Drive folder & subfolders, compute hash, and insert pending rows into Google Sheet (NO OCR).
+   */
+  async discoverAndSyncSheet(): Promise<{ discovered: number; total: number; books: string[] }> {
+    logger.info('=== Starting Google Drive Scan (Discovery Only) ===');
+
+    const driveRes = await this.appscriptClient.listImages(this.config.driveFolderId);
+    const driveFiles = driveRes.files || [];
+    logger.info(`Found ${driveFiles.length} image(s) on Google Drive across folders.`);
+
+    const existingRecords = await this.appscriptClient.readSheetRows();
+    const recordById = new Map<string, SheetRecord>();
+    for (const rec of existingRecords) {
+      if (rec.driveFileId) recordById.set(rec.driveFileId, rec);
+      else if (rec.fileName) recordById.set(rec.fileName, rec);
+    }
+
+    let discoveredCount = 0;
+    const booksSet = new Set<string>();
+
+    for (const file of driveFiles) {
+      const book = file.bookName || 'Default';
+      booksSet.add(book);
+
+      const existing = recordById.get(file.id) || recordById.get(file.name);
+      if (!existing) {
+        const newRecord: SheetRecord = {
+          fileName: file.name,
+          status: 'pending',
+          driveFileId: file.id,
+          ocrText: '',
+          errorMessage: '',
+          note: file.md5Checksum || '',
+          bookName: book,
+          batchId: '',
+          batchRequestKey: file.id,
+        };
+        await this.appscriptClient.appendRow(newRecord);
+        recordById.set(file.id, newRecord);
+        discoveredCount++;
+      }
+    }
+
+    if (discoveredCount > 0) {
+      logger.info(`Added ${discoveredCount} newly discovered images to Google Sheet as "pending".`);
+    } else {
+      logger.info(`Google Sheet is up to date (${existingRecords.length} records).`);
+    }
+
+    this.lastSyncTime = new Date().toISOString();
+
+    return {
+      discovered: discoveredCount,
+      total: driveFiles.length,
+      books: Array.from(booksSet),
+    };
+  }
+
+  /**
    * Run sync cycle depending on configuration mode (Batch or Direct Sync).
    */
   async runSyncCycle(): Promise<SyncSummary> {

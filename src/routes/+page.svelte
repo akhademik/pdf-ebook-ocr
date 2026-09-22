@@ -42,6 +42,7 @@
   let isRefreshing = $state(false);
   let isRunningCheck = $state(false);
   let isSyncing = $state(false);
+  let isScanningDrive = $state(false);
   let isPollingBatches = $state(false);
   let isPromptEditorOpen = $state(false);
   let selectedRecord = $state<SheetRecord | null>(null);
@@ -59,6 +60,27 @@
       // ignore network hiccups
     } finally {
       isRefreshing = false;
+    }
+  }
+
+  async function handleScanDrive() {
+    isScanningDrive = true;
+    try {
+      const res = await fetch('/api/scan', { method: 'POST' });
+      if (res.ok) {
+        const data = (await res.json()) as { discovered: number; total: number; books: string[] };
+        await fetchStatus();
+        alert(
+          `Đã quét xong Google Drive!\n- Tổng số ảnh trên Drive: ${data.total}\n- Ảnh mới nạp vào Sheet: ${data.discovered}\n- Danh sách sách: ${data.books.join(', ') || 'Default'}`,
+        );
+      } else {
+        const err = (await res.json()) as { error?: string };
+        alert(`Lỗi khi quét Drive: ${err.error || 'Thất bại'}`);
+      }
+    } catch (err: unknown) {
+      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      isScanningDrive = false;
     }
   }
 
@@ -253,17 +275,18 @@
 
     <SyncActionPanel
       isSyncing={isSyncing || statusData.isSyncing}
+      isScanning={isScanningDrive}
       lastSyncSummary={statusData.lastSyncSummary}
       lastSyncTime={statusData.lastSyncTime}
       pollIntervalMinutes={statusData.pollIntervalMinutes}
       maxConcurrency={statusData.maxConcurrency}
-      outputDir={statusData.outputDir}
       geminiModel={statusData.geminiModel}
       availableModels={statusData.availableModels}
       useBatchMode={statusData.useBatchMode}
       batchPollIntervalMinutes={statusData.batchPollIntervalMinutes}
       isPolling={isPollingBatches}
       onModelChange={handleModelChange}
+      onScanDrive={handleScanDrive}
       onRunSync={handleRunSync}
       onPollBatches={handlePollBatches}
       onExportMarkdown={() => handleExportMarkdown()}
