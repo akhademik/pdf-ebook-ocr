@@ -1,10 +1,21 @@
 <script lang="ts">
-  import { BookOpen, Play, Download, Trash2, CheckCircle2, Clock, AlertCircle } from '@lucide/svelte';
+  import {
+    BookOpen,
+    Play,
+    Download,
+    Trash2,
+    CircleCheck,
+    Clock,
+    CircleAlert,
+    LoaderCircle,
+  } from '@lucide/svelte';
   import type { SheetRecord } from '$lib/types/ocr.js';
+  import type { BatchRun } from '$lib/types/batchRun.js';
 
   interface Props {
     records: SheetRecord[];
     isSyncing: boolean;
+    batchRuns?: BatchRun[];
     onRunBookBatch: (bookName: string) => void;
     onDownloadBookZip: (bookName: string) => void;
     onDeleteBook: (bookName: string) => void;
@@ -13,6 +24,7 @@
   let {
     records,
     isSyncing,
+    batchRuns = [],
     onRunBookBatch,
     onDownloadBookZip,
     onDeleteBook,
@@ -28,6 +40,16 @@
     error: number;
     percent: number;
   }
+
+  let runsByBook = $derived.by(() => {
+    const map = new Map<string, BatchRun>();
+    for (const run of batchRuns) {
+      if (!map.has(run.bookName)) {
+        map.set(run.bookName, run);
+      }
+    }
+    return map;
+  });
 
   let bookStats = $derived.by(() => {
     const map = new Map<string, BookStat>();
@@ -74,7 +96,7 @@
       </div>
       <div>
         <h2 class="text-sm font-semibold text-white">Quản lý sách & Tiến độ ({bookStats.length} cuốn)</h2>
-        <p class="text-xs text-slate-400">Theo dõi tiến trình từng cuốn, chạy batch hoặc xóa sách đã hoàn thiện khỏi Sheet</p>
+        <p class="text-xs text-slate-400">Theo dõi tiến trình từng cuốn, chạy batch không đồng bộ hoặc xóa sách đã xong</p>
       </div>
     </div>
   </div>
@@ -82,11 +104,17 @@
   <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
     {#if bookStats.length === 0}
       <div class="col-span-full py-8 text-center text-slate-500 text-xs">
-        Chưa có dữ liệu sách nào. Hãy bấm "Làm mới" hoặc "Chạy Sync" để quét các thư mục con trong Google Drive.
+        Chưa có dữ liệu sách nào. Hãy bấm "Làm mới" hoặc "Quét Google Drive" để nạp các thư mục sách.
       </div>
     {:else}
       {#each bookStats as book}
-        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition">
+        {@const currentRun = runsByBook.get(book.bookName)}
+        {@const isRunning =
+          currentRun &&
+          (currentRun.phase === 'preparing' ||
+            currentRun.phase === 'downloading' ||
+            currentRun.phase === 'uploading')}
+        <div class="bg-slate-950/60 border {isRunning ? 'border-indigo-500/60 ring-1 ring-indigo-500/30' : 'border-slate-800/80'} rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition">
           <div>
             <div class="flex items-center justify-between gap-2 mb-2">
               <span class="text-xs font-semibold text-white truncate flex items-center gap-1.5" title={book.bookName}>
@@ -97,7 +125,7 @@
               </span>
             </div>
 
-            <!-- Progress bar -->
+            <!-- Main Book Progress bar -->
             <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
               <div
                 class="h-full {book.percent === 100 ? 'bg-emerald-500' : 'bg-indigo-500'} transition-all duration-300"
@@ -105,19 +133,55 @@
               ></div>
             </div>
 
+            <!-- Active Batch Run Progress Banner (Live P0 Feature) -->
+            {#if isRunning && currentRun}
+              <div class="mb-3 p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-xs">
+                <div class="flex items-center justify-between gap-2 text-indigo-300 font-medium mb-1.5">
+                  <span class="flex items-center gap-1.5">
+                    <LoaderCircle class="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                    <span>{currentRun.phase === 'downloading' ? 'Đang tải ảnh...' : currentRun.phase === 'uploading' ? 'Đang nạp lên Gemini...' : 'Đang chuẩn bị...'}</span>
+                  </span>
+                  <span class="font-mono font-bold text-indigo-200">{currentRun.percent}%</span>
+                </div>
+                <div class="w-full h-1.5 bg-indigo-950 rounded-full overflow-hidden mb-1.5">
+                  <div
+                    class="h-full bg-indigo-400 transition-all duration-200"
+                    style="width: {currentRun.percent}%"
+                  ></div>
+                </div>
+                <div class="text-[11px] text-indigo-200/80 truncate" title={currentRun.message}>
+                  {currentRun.message}
+                </div>
+              </div>
+            {:else if currentRun && currentRun.phase === 'batch_submitted'}
+              <div class="mb-3 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-1.5">
+                <CircleCheck class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span class="truncate" title={currentRun.message}>
+                  {currentRun.message}
+                </span>
+              </div>
+            {:else if currentRun && currentRun.phase === 'error'}
+              <div class="mb-3 p-2 rounded-lg bg-rose-950/40 border border-rose-500/30 text-[11px] text-rose-300 flex items-center gap-1.5">
+                <CircleAlert class="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span class="truncate" title={currentRun.errorMessage || currentRun.message}>
+                  {currentRun.errorMessage || currentRun.message}
+                </span>
+              </div>
+            {/if}
+
             <!-- Stats detail -->
             <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400 mb-4 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/50">
               <div>
                 Tổng số trang: <span class="text-white font-medium">{book.total}</span>
               </div>
               <div class="text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 class="w-3 h-3" /> Đã xong: <span class="font-medium">{book.done}</span>
+                <CircleCheck class="w-3 h-3" /> Đã xong: <span class="font-medium">{book.done}</span>
               </div>
               <div class="text-sky-400 flex items-center gap-1">
                 <Clock class="w-3 h-3" /> Đang chờ/Lô: <span class="font-medium">{book.pending + book.batchSubmitted + book.processing}</span>
               </div>
               <div class="{book.error > 0 ? 'text-rose-400' : 'text-slate-500'} flex items-center gap-1">
-                <AlertCircle class="w-3 h-3" /> Lỗi: <span class="font-medium">{book.error}</span>
+                <CircleAlert class="w-3 h-3" /> Lỗi: <span class="font-medium">{book.error}</span>
               </div>
             </div>
           </div>
@@ -127,13 +191,18 @@
             <div class="flex items-center gap-1.5">
               <button
                 onclick={() => onRunBookBatch(book.bookName)}
-                disabled={isSyncing || book.pending === 0}
+                disabled={isSyncing || isRunning || book.pending === 0}
                 type="button"
                 class="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer disabled:opacity-40"
-                title={book.pending === 0 ? 'Không có trang pending để gửi batch' : 'Gửi batch cho riêng cuốn sách này'}
+                title={book.pending === 0 ? 'Không có trang pending để gửi batch' : 'Gửi batch không đồng bộ cho cuốn sách này'}
               >
-                <Play class="w-3 h-3" />
-                <span>Chạy Batch ({book.pending})</span>
+                {#if isRunning}
+                  <LoaderCircle class="w-3 h-3 animate-spin" />
+                  <span>Đang xử lý...</span>
+                {:else}
+                  <Play class="w-3 h-3" />
+                  <span>Chạy Batch ({book.pending})</span>
+                {/if}
               </button>
 
               <button
@@ -163,3 +232,4 @@
     {/if}
   </div>
 </div>
+

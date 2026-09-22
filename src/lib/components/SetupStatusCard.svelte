@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ShieldCheck, CheckCircle2, XCircle, Loader2, Play } from '@lucide/svelte';
+  import { ShieldCheck, CircleCheck, CircleX, LoaderCircle, Play } from '@lucide/svelte';
   import type { SetupCheckResult } from '$lib/types/config.js';
 
   interface Props {
@@ -31,7 +31,7 @@
       class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
     >
       {#if isRunningCheck}
-        <Loader2 class="w-3.5 h-3.5 animate-spin" />
+        <LoaderCircle class="w-3.5 h-3.5 animate-spin" />
         <span>Đang kiểm tra...</span>
       {:else}
         <Play class="w-3.5 h-3.5" />
@@ -55,11 +55,11 @@
         <div class="flex items-start justify-between p-3 rounded-lg bg-slate-950/50 border border-slate-800/80">
           <div class="flex items-start gap-2.5">
             {#if step.status === 'success'}
-              <CheckCircle2 class="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+              <CircleCheck class="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
             {:else if step.status === 'error'}
-              <XCircle class="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+              <CircleX class="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
             {:else}
-              <Loader2 class="w-4 h-4 text-amber-400 animate-spin mt-0.5 shrink-0" />
+              <LoaderCircle class="w-4 h-4 text-amber-400 animate-spin mt-0.5 shrink-0" />
             {/if}
             <div>
               <p class="text-xs font-medium text-slate-200">{step.title}</p>

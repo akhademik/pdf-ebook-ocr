@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText, CheckCircle2, Clock, AlertCircle } from '@lucide/svelte';
+  import { FileText, CircleCheck, Clock, CircleAlert } from '@lucide/svelte';
   import type { SheetRecord } from '$lib/types/ocr.js';
 
   interface Props {
@@ -31,7 +31,7 @@
       <p class="text-2xl font-bold text-white mt-1">{doneCount}</p>
     </div>
     <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-      <CheckCircle2 class="w-5 h-5" />
+      <CircleCheck class="w-5 h-5" />
     </div>
   </div>
 
@@ -51,7 +51,7 @@
       <p class="text-2xl font-bold text-white mt-1">{errorCount}</p>
     </div>
     <div class="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-      <AlertCircle class="w-5 h-5" />
+      <CircleAlert class="w-5 h-5" />
     </div>
   </div>
 </div>

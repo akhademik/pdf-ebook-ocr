@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { orchestrator } from '$lib/server/orchestrator.js';
+import { batchRunManager } from '$lib/server/batchRunManager.js';
 
 export const DELETE: RequestHandler = async ({ params }) => {
   const bookName = decodeURIComponent(params.bookName || '').trim();
@@ -24,20 +25,33 @@ export const DELETE: RequestHandler = async ({ params }) => {
 
 export const POST: RequestHandler = async ({ params }) => {
   const bookName = decodeURIComponent(params.bookName || '').trim();
-  const syncService = orchestrator.getSyncService();
-  if (!syncService) {
-    return json({ error: 'Sync service chưa được khởi tạo' }, { status: 400 });
+  if (!bookName) {
+    return json({ error: 'Tên sách không hợp lệ' }, { status: 400 });
   }
 
-  if (syncService.isBusy()) {
-    return json({ error: 'Tiến trình khác đang chạy' }, { status: 409 });
+  const appscriptClient = orchestrator.getAppscriptClient();
+  const geminiClient = orchestrator.getGeminiClient();
+  const geminiBatchClient = orchestrator.getGeminiBatchClient();
+
+  if (!appscriptClient || !geminiClient || !geminiBatchClient) {
+    return json({ error: 'Dịch vụ chưa được cấu hình đầy đủ biến môi trường' }, { status: 400 });
   }
 
-  try {
-    const summary = await syncService.submitPendingBatches(bookName);
-    return json({ success: true, bookName, summary });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return json({ error: msg }, { status: 500 });
+  if (batchRunManager.isBookRunning(bookName)) {
+    return json(
+      {
+        error: `Cuốn sách "${bookName}" đang có một tiến trình nạp batch đang chạy.`,
+        run: batchRunManager.getRunForBook(bookName),
+      },
+      { status: 409 },
+    );
   }
+
+  const run = batchRunManager.createAndStartRun(bookName, {
+    appscriptClient,
+    geminiClient,
+    geminiBatchClient,
+  });
+
+  return json({ success: true, run }, { status: 202 });
 };

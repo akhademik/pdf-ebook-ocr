@@ -1,8 +1,8 @@
 <script lang="ts">
   import {
-    AlertCircle,
-    CheckCircle2,
-    AlertTriangle,
+    CircleAlert,
+    CircleCheck,
+    TriangleAlert,
     Info,
     Trash2,
     X,
@@ -85,11 +85,11 @@
                       : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'}"
               >
                 {#if dialog.variant === 'error'}
-                  <AlertCircle class="w-5 h-5" />
+                  <CircleAlert class="w-5 h-5" />
                 {:else if dialog.variant === 'warning'}
-                  <AlertTriangle class="w-5 h-5" />
+                  <TriangleAlert class="w-5 h-5" />
                 {:else if dialog.variant === 'success'}
-                  <CheckCircle2 class="w-5 h-5" />
+                  <CircleCheck class="w-5 h-5" />
                 {:else}
                   <Info class="w-5 h-5" />
                 {/if}

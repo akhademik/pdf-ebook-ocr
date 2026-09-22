@@ -4,8 +4,8 @@
     FileText,
     Play,
     Eye,
-    AlertCircle,
-    CheckCircle2,
+    CircleAlert,
+    CircleCheck,
     Clock,
     Search,
     Folder,
@@ -264,7 +264,7 @@
                   <span
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   >
-                    <CheckCircle2 class="w-3 h-3" /> Done
+                    <CircleCheck class="w-3 h-3" /> Done
                   </span>
                 {:else if rec.status === 'batch_submitted'}
                   <span
@@ -290,7 +290,7 @@
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"
                     title={rec.errorMessage}
                   >
-                    <AlertCircle class="w-3 h-3" /> Error
+                    <CircleAlert class="w-3 h-3" /> Error
                   </span>
                 {:else}
                   <span

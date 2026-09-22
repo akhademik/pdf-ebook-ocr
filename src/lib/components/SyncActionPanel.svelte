@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { RefreshCw, Download, Layers, Sparkles, Cpu, Send, CheckCircle2 } from '@lucide/svelte';
+  import { RefreshCw, Download, Layers, Sparkles, Send, Cpu } from '@lucide/svelte';
   import type { SyncSummary } from '$lib/types/ocr.js';
   import type { GeminiModelInfo } from '$lib/types/config.js';
 

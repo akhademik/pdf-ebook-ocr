@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, Copy, Check, Play, Loader2, Image as ImageIcon } from '@lucide/svelte';
+  import { X, Copy, Check, Play, LoaderCircle, Image as ImageIcon } from '@lucide/svelte';
   import type { SheetRecord } from '$lib/types/ocr.js';
 
   interface Props {
@@ -66,7 +66,7 @@
             class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             {#if isProcessing}
-              <Loader2 class="w-3.5 h-3.5 animate-spin" />
+              <LoaderCircle class="w-3.5 h-3.5 animate-spin" />
               <span>Đang OCR...</span>
             {:else}
               <Play class="w-3.5 h-3.5" />
@@ -89,7 +89,7 @@
         <div class="p-4 flex flex-col items-center justify-center bg-slate-950/50 overflow-y-auto max-h-[50vh] md:max-h-[70vh]">
           {#if isLoadingPreview}
             <div class="flex flex-col items-center gap-2 text-slate-400 text-xs">
-              <Loader2 class="w-6 h-6 animate-spin text-indigo-400" />
+              <LoaderCircle class="w-6 h-6 animate-spin text-indigo-400" />
               <span>Đang tải ảnh từ Google Drive...</span>
             </div>
           {:else if previewUrl}

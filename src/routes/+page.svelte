@@ -13,6 +13,7 @@
   import LogConsole from '$lib/components/LogConsole.svelte';
   import type { SystemStatusResponse } from '$lib/types/status.js';
   import type { SheetRecord } from '$lib/types/ocr.js';
+  import type { BatchRun } from '$lib/types/batchRun.js';
   import type { SetupCheckResult } from '$lib/types/config.js';
   import type { DialogOptions } from '$lib/types/modal.js';
 
@@ -41,6 +42,7 @@
     recentLogs: [],
   });
 
+  let batchRuns = $state<BatchRun[]>([]);
   let isRefreshing = $state(false);
   let isRunningCheck = $state(false);
   let isSyncing = $state(false);
@@ -50,6 +52,7 @@
   let selectedRecord = $state<SheetRecord | null>(null);
   let processingFileId = $state<string | null>(null);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let batchRunPollTimer: ReturnType<typeof setInterval> | null = null;
 
   let dialog = $state<DialogOptions>({
     isOpen: false,
@@ -196,21 +199,58 @@
     }
   }
 
+  async function fetchBatchRuns() {
+    try {
+      const res = await fetch('/api/batch-runs');
+      if (res.ok) {
+        const data = (await res.json()) as { runs: BatchRun[] };
+        const prevRunningCount = batchRuns.filter(
+          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+        ).length;
+        batchRuns = data.runs || [];
+        const newRunningCount = batchRuns.filter(
+          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+        ).length;
+
+        // If runs just finished, refresh main sheet status
+        if (prevRunningCount > 0 && newRunningCount === 0) {
+          await fetchStatus();
+        }
+      }
+    } catch {
+      // ignore network glitch
+    }
+  }
+
+  function startBatchRunPolling() {
+    if (!batchRunPollTimer) {
+      batchRunPollTimer = setInterval(async () => {
+        await fetchBatchRuns();
+        const hasActive = batchRuns.some(
+          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+        );
+        if (!hasActive && batchRunPollTimer) {
+          clearInterval(batchRunPollTimer);
+          batchRunPollTimer = null;
+        }
+      }, 1500);
+    }
+  }
+
   async function handleRunBookBatch(bookName: string) {
-    isSyncing = true;
     try {
       const res = await fetch(`/api/books/${encodeURIComponent(bookName)}`, {
         method: 'POST',
       });
-      if (!res.ok) {
+      if (!res.ok && res.status !== 202) {
         const err = (await res.json()) as { error?: string };
         showErrorModal('Lỗi khi gửi Batch Job', err.error || `Không thể gửi batch cho cuốn ${bookName}`);
+      } else {
+        await fetchBatchRuns();
+        startBatchRunPolling();
       }
-      await fetchStatus();
     } catch (err: unknown) {
       showErrorModal('Lỗi khi gửi Batch Job', err instanceof Error ? err.message : String(err));
-    } finally {
-      isSyncing = false;
     }
   }
 
@@ -317,11 +357,13 @@
 
   onMount(() => {
     fetchStatus();
+    fetchBatchRuns();
     pollTimer = setInterval(fetchStatus, 4000);
   });
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
+    if (batchRunPollTimer) clearInterval(batchRunPollTimer);
   });
 </script>
 
@@ -366,6 +408,7 @@
   <BooksOverviewCard
     records={statusData.records}
     isSyncing={isSyncing}
+    {batchRuns}
     onRunBookBatch={handleRunBookBatch}
     onDownloadBookZip={handleDownloadBookZip}
     onDeleteBook={handleDeleteBook}

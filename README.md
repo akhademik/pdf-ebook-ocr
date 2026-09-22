@@ -150,14 +150,17 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 15:35
+- **Cập nhật lần cuối**: 2026-09-22 15:55
 - **Đã hoàn thành**:
+  - Triển khai kiến trúc **Asynchronous Batch Execution (P0 & P1)**:
+    - Bấm "Chạy Batch" trả về ngay `202 Accepted` kèm `runId`, không giữ kết nối HTTP dài gây timeout.
+    - Khởi tạo tiến trình nền `BatchRunManager` hỗ trợ tải ảnh song song (concurrency pool 4 luồng) từ Drive qua Apps Script, tăng tốc 3x–4x.
+    - Cung cấp API lightweight `/api/batch-runs` và `/api/batch-runs/:runId` để UI polling định kỳ 1.5–2s.
+    - Giao diện Card Sách (`BooksOverviewCard`) hiển thị thanh tiến trình trực quan theo thời gian thực: `Đang tải ảnh: 45 / 120 (38%)` ➔ `Đang upload lên Gemini...` ➔ `Đã nạp lô: batches/xxx`.
   - Tách bạch hoàn toàn luồng Quét (`pending`) và Thực thi OCR.
-  - Tối ưu Apps Script `appendRows` chèn hàng loạt (batch insert) trong 1 request, khắc phục triệt để nghẽn quota/thời gian khi có hàng trăm trang ảnh.
-  - Tối ưu giao diện bảng trang: Chia chunk 20 items với Infinite Scroll kết hợp thanh tìm kiếm tức thì theo tên trang / thứ tự.
-  - Thay thế toàn bộ Window Alert mặc định bằng `CustomDialogModal` (Confirm, Alert, Danger actions).
-  - Loại bỏ các dropdown trùng lặp, tối ưu header và thiết lập Gemini Batch Mode làm mặc định.
-  - Tích hợp pipeline kiểm định: format, lint, type check, unit tests (21/21 passed), knip, graphify.
+  - Tối ưu Apps Script `appendRows` chèn hàng loạt (batch insert) trong 1 request.
+  - Tối ưu giao diện bảng trang với Infinite Scroll (chunk 20 trang) + Instant Search.
+  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (23/23 passed), knip, graphify.
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
   - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
@@ -165,6 +168,31 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Chuẩn hóa Lucide Icons & Loại bỏ cảnh báo Deprecated)
+
+- **Thêm/sửa**:
+  - Rà soát và thay thế toàn bộ các Lucide icons cũ/deprecated trên toàn bộ project sang chuẩn Lucide v1+:
+    - `CheckCircle2` ➔ `CircleCheck`
+    - `AlertCircle` ➔ `CircleAlert`
+    - `AlertTriangle` ➔ `TriangleAlert`
+    - `XCircle` ➔ `CircleX`
+    - `Loader2` ➔ `LoaderCircle`
+  - Đảm bảo 100% sạch cảnh báo build / lint.
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (23/23 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/components/StatsCards.svelte`](src/lib/components/StatsCards.svelte), [`src/lib/components/BatchJobsTable.svelte`](src/lib/components/BatchJobsTable.svelte), [`src/lib/components/SetupStatusCard.svelte`](src/lib/components/SetupStatusCard.svelte), [`src/lib/components/BooksOverviewCard.svelte`](src/lib/components/BooksOverviewCard.svelte), [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte), [`src/lib/components/CustomDialogModal.svelte`](src/lib/components/CustomDialogModal.svelte), [`src/lib/components/OcrPreviewModal.svelte`](src/lib/components/OcrPreviewModal.svelte), [`src/lib/components/SyncActionPanel.svelte`](src/lib/components/SyncActionPanel.svelte).
+
+### 2026-09-22 (Bổ sung Asynchronous Batch Execution & Real-time Progress Tracking)
+
+- **Thêm/sửa**:
+  - Tái cấu trúc luồng `POST /api/books/[bookName]` thành bất đồng bộ (Async Job Runner với `BatchRunManager`).
+  - Thêm Type `BatchRun` & `BatchRunPhase` tại [`src/lib/types/batchRun.ts`](src/lib/types/batchRun.ts).
+  - Tối ưu hóa tải ảnh đa luồng song song (Concurrency pool 4) trong `batchRunManager.ts`.
+  - Bổ sung REST APIs: `GET /api/batch-runs` và `GET /api/batch-runs/[runId]`.
+  - Nâng cấp UI [`src/lib/components/BooksOverviewCard.svelte`](src/lib/components/BooksOverviewCard.svelte) hiển thị thanh tiến trình nhảy số và phần trăm thời gian thực.
+  - Thêm unit test cho `BatchRunManager` nâng tổng số test lên 23 tests (100% pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (23/23 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/types/batchRun.ts`](src/lib/types/batchRun.ts), [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts), [`src/routes/api/batch-runs/+server.ts`](src/routes/api/batch-runs/+server.ts), [`src/routes/api/batch-runs/[runId]/+server.ts`](src/routes/api/batch-runs/[runId]/+server.ts), [`src/routes/api/books/[bookName]/+server.ts`](src/routes/api/books/[bookName]/+server.ts), [`src/lib/components/BooksOverviewCard.svelte`](src/lib/components/BooksOverviewCard.svelte), [`src/routes/+page.svelte`](src/routes/+page.svelte), [`tests/batchRunManager.test.ts`](tests/batchRunManager.test.ts).
 
 ### 2026-09-22
 

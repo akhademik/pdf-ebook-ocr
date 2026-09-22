@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Layers, RefreshCw, CheckCircle2, Clock, AlertCircle, XCircle } from '@lucide/svelte';
+  import { Layers, RefreshCw, CircleCheck, Clock, CircleAlert, CircleX } from '@lucide/svelte';
   import type { BatchJobRecord } from '$lib/types/ocr.js';
 
   interface Props {
@@ -74,7 +74,7 @@
                   <span
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   >
-                    <CheckCircle2 class="w-3 h-3" /> Completed
+                    <CircleCheck class="w-3 h-3" /> Completed
                   </span>
                 {:else if job.status === 'running'}
                   <span
@@ -87,13 +87,13 @@
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"
                     title={job.errorMessage}
                   >
-                    <AlertCircle class="w-3 h-3" /> Failed
+                    <CircleAlert class="w-3 h-3" /> Failed
                   </span>
                 {:else if job.status === 'expired'}
                   <span
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"
                   >
-                    <XCircle class="w-3 h-3" /> Expired
+                    <CircleX class="w-3 h-3" /> Expired
                   </span>
                 {:else}
                   <span
