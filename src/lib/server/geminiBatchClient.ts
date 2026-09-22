@@ -23,6 +23,20 @@ export interface GeminiBatchStatusResponse {
   totalCount?: number;
 }
 
+export interface GeminiFileMetadata {
+  name: string;
+  displayName?: string;
+  mimeType: string;
+  sizeBytes: string;
+  createTime?: string;
+  updateTime?: string;
+  expirationTime?: string;
+  sha256Hash?: string;
+  uri?: string;
+  state?: 'PROCESSING' | 'ACTIVE' | 'FAILED' | 'STATE_UNSPECIFIED' | string;
+  error?: { code?: number; message?: string };
+}
+
 export class GeminiBatchClient {
   private apiKey: string;
   private baseUrl = 'https://generativelanguage.googleapis.com';
@@ -32,14 +46,38 @@ export class GeminiBatchClient {
   }
 
   /**
-   * Upload JSONL content via Google AI File API
+   * Get metadata of an uploaded file in Gemini Files API
    */
-  async uploadJsonlFile(jsonlContent: string, fileName: string): Promise<string> {
+  async getFileMetadata(fileName: string): Promise<GeminiFileMetadata> {
+    const formattedName = fileName.startsWith('files/') ? fileName : `files/${fileName}`;
+    const endpoint = `${this.baseUrl}/v1beta/${formattedName}?key=${this.apiKey}`;
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(
+        `Failed to get file metadata for ${formattedName} (${res.status}): ${errText}`,
+      );
+    }
+
+    return (await res.json()) as GeminiFileMetadata;
+  }
+
+  /**
+   * Upload JSONL content via Google AI File API with MIME application/jsonl
+   */
+  async uploadJsonlFile(
+    jsonlContent: string,
+    fileName: string,
+  ): Promise<{ fileName: string; metadata?: GeminiFileMetadata }> {
     const buffer = Buffer.from(jsonlContent, 'utf-8');
     const uploadUrl = `${this.baseUrl}/upload/v1beta/files?key=${this.apiKey}`;
 
     logger.info(
-      `Uploading batch JSONL file "${fileName}" (${buffer.length} bytes) to Gemini Files API...`,
+      `Uploading batch JSONL file "${fileName}" (${buffer.length} bytes) to Gemini Files API as application/jsonl...`,
     );
 
     const res = await fetch(uploadUrl, {
@@ -47,8 +85,8 @@ export class GeminiBatchClient {
       headers: {
         'X-Goog-Upload-Command': 'start, upload, finalize',
         'X-Goog-Upload-Header-Content-Length': buffer.length.toString(),
-        'X-Goog-Upload-Header-Content-Type': 'text/plain',
-        'Content-Type': 'text/plain',
+        'X-Goog-Upload-Header-Content-Type': 'application/jsonl',
+        'Content-Type': 'application/jsonl',
       },
       body: buffer,
     });
@@ -63,8 +101,46 @@ export class GeminiBatchClient {
       throw new Error('Files API upload did not return a valid file name');
     }
 
-    logger.info(`Uploaded file successfully: ${data.file.name}`);
-    return data.file.name;
+    const uploadedName = data.file.name;
+    logger.info(`Uploaded file successfully: ${uploadedName}`);
+
+    // Verify file metadata & state
+    let fileMeta: GeminiFileMetadata | undefined;
+    try {
+      fileMeta = await this.getFileMetadata(uploadedName);
+      logger.info(
+        `Gemini File metadata verified: ${JSON.stringify({
+          name: fileMeta.name,
+          displayName: fileMeta.displayName,
+          mimeType: fileMeta.mimeType,
+          sizeBytes: fileMeta.sizeBytes,
+          state: fileMeta.state,
+        })}`,
+      );
+
+      // If in PROCESSING state, wait briefly for ACTIVE
+      if (fileMeta.state === 'PROCESSING') {
+        logger.info(`File ${uploadedName} is PROCESSING, waiting for ACTIVE state...`);
+        for (let poll = 0; poll < 5; poll++) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          fileMeta = await this.getFileMetadata(uploadedName);
+          if (fileMeta.state === 'ACTIVE') {
+            logger.info(`File ${uploadedName} became ACTIVE.`);
+            break;
+          }
+        }
+      }
+
+      if (fileMeta.state === 'FAILED') {
+        throw new Error(
+          `Uploaded file entered FAILED state on Gemini: ${JSON.stringify(fileMeta.error || fileMeta)}`,
+        );
+      }
+    } catch (metaErr) {
+      logger.warn(`Could not verify metadata for ${uploadedName}:`, metaErr);
+    }
+
+    return { fileName: uploadedName, metadata: fileMeta };
   }
 
   /**
@@ -108,7 +184,10 @@ export class GeminiBatchClient {
     const fileName = `batch-${displayName || 'ocr'}-${timestamp}.jsonl`;
 
     // 1. Upload to Files API
-    const uploadedFileName = await this.uploadJsonlFile(jsonlContent, fileName);
+    const { fileName: uploadedFileName, metadata: fileMeta } = await this.uploadJsonlFile(
+      jsonlContent,
+      fileName,
+    );
 
     // 2. Create batch job
     const normalizedModel = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
@@ -137,6 +216,16 @@ export class GeminiBatchClient {
 
     if (!res.ok) {
       const errText = await res.text();
+      const maskedEndpoint = batchEndpoint.replace(/key=[^&]+/, 'key=***');
+      logger.error(`Failed to create Gemini Batch job (${res.status}): ${errText}`, {
+        model: normalizedModel,
+        uploadedFileName,
+        uploadedFileMimeType: fileMeta?.mimeType,
+        uploadedFileState: fileMeta?.state,
+        uploadedFileSize: fileMeta?.sizeBytes,
+        batchEndpoint: maskedEndpoint,
+        batchPayload: payload,
+      });
       throw new Error(`Failed to create Gemini Batch job (${res.status}): ${errText}`);
     }
 

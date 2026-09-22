@@ -18,7 +18,19 @@ describe('GeminiBatchClient', () => {
       json: async () => ({ file: { name: 'files/abc123upload', uri: 'https://...' } }),
     });
 
-    // 2. Mock batch create
+    // 2. Mock getFileMetadata verification
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        name: 'files/abc123upload',
+        displayName: 'TestBook-part-1.jsonl',
+        mimeType: 'application/jsonl',
+        sizeBytes: '1024',
+        state: 'ACTIVE',
+      }),
+    });
+
+    // 3. Mock batch create
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ name: 'batches/job-xyz-789' }),
@@ -36,10 +48,10 @@ describe('GeminiBatchClient', () => {
 
     expect(result.batchId).toBe('batches/job-xyz-789');
     expect(result.totalImages).toBe(2);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
 
-    // Verify 2nd call (batch creation)
-    const [createUrl, createOptions] = mockFetch.mock.calls[1] as [string, RequestInit];
+    // Verify 3rd call (batch creation)
+    const [createUrl, createOptions] = mockFetch.mock.calls[2] as [string, RequestInit];
     expect(createUrl).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:batchGenerateContent?key=test_api_key',
     );
@@ -63,7 +75,19 @@ describe('GeminiBatchClient', () => {
       json: async () => ({ file: { name: 'files/abc123upload', uri: 'https://...' } }),
     });
 
-    // 2. Mock batch create failure (404)
+    // 2. Mock getFileMetadata verification
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        name: 'files/abc123upload',
+        displayName: 'TestBook-part-1.jsonl',
+        mimeType: 'application/jsonl',
+        sizeBytes: '512',
+        state: 'ACTIVE',
+      }),
+    });
+
+    // 3. Mock batch create failure (404)
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 404,

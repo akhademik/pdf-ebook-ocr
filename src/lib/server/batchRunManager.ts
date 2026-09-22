@@ -226,7 +226,7 @@ class BatchRunManager {
       run.updatedAt = new Date().toISOString();
 
       try {
-        // Rollback or mark error on sheet
+        // Rollback sheet rows from 'batching' back to 'pending' so user can retry
         const existingRecords = await appscriptClient.readSheetRows();
         const batchingRecords = existingRecords.filter(
           (r) =>
@@ -236,7 +236,7 @@ class BatchRunManager {
           await appscriptClient.batchUpdateRows(
             batchingRecords.map((c) => ({
               identifier: c.driveFileId,
-              data: { status: 'error', errorMessage: msg },
+              data: { status: 'pending', errorMessage: '' },
             })),
           );
         }

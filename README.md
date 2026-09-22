@@ -150,14 +150,13 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 16:10
+- **Cập nhật lần cuối**: 2026-09-22 16:25
 - **Đã hoàn thành**:
-  - Sửa lỗi tích hợp **Gemini Batch API**:
-    - Chuẩn hóa endpoint sang `POST /v1beta/models/{model}:batchGenerateContent`.
-    - Chuẩn hóa body cấu trúc payload với root `batch: { display_name, input_config: { file_name } }`.
-    - Chuẩn hóa cấu hình model Gemini sang các model hiện hành đã xác thực (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`).
-    - Nâng cấp error log chi tiết (kèm response body đầy đủ) khi xảy ra lỗi từ Gemini.
-  - Triển khai kiến trúc **Asynchronous Batch Execution (P0 & P1)** với `BatchRunManager`, tải ảnh song song và thanh tiến trình thời gian thực.
+  - Sửa lỗi tích hợp **Gemini Batch API (400 FAILED_PRECONDITION)**:
+    - Đặt đúng MIME type `application/jsonl` (`Content-Type` và `X-Goog-Upload-Header-Content-Type`) khi tải file JSONL lên Gemini Files API (thay vì `text/plain`).
+    - Bổ sung cơ chế tự động kiểm tra và chờ trạng thái `state: ACTIVE` của file upload trước khi gọi `batchGenerateContent`.
+    - Tự động rollback các dòng `batching` về `pending` khi submit thất bại để người dùng có thể thử lại ngay mà không bị kẹt.
+    - Bổ sung rich logging an toàn (che API key) in đầy đủ metadata khi submit batch thất bại.
   - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (24/24 passed), knip, graphify.
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
@@ -166,6 +165,17 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Sửa lỗi Gemini Batch API 400 FAILED_PRECONDITION & Kiểm tra File Metadata)
+
+- **Thêm/sửa**:
+  - Sửa `Content-Type` và `X-Goog-Upload-Header-Content-Type` thành `application/jsonl` trong [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts).
+  - Thêm phương thức `getFileMetadata(fileName)` và vòng lặp chờ trạng thái `state === 'ACTIVE'` trước khi tạo batch job.
+  - Cải thiện rollback trạng thái hàng Google Sheet từ `batching` về `pending` trong [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts) khi gặp lỗi submit batch.
+  - Bổ sung log chẩn đoán chi tiết che giấu API key khi gọi batch thất bại.
+  - Cập nhật test cases trong [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts) và [`tests/batchRunManager.test.ts`](tests/batchRunManager.test.ts) (24/24 passed).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (24/24 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts), [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts), [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts), [`README.md`](README.md).
 
 ### 2026-09-22 (Cập nhật Model sang gemini-3.6-flash theo chuẩn Google AI)
 
