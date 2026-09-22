@@ -109,18 +109,73 @@ Truy cập giao diện tại: **`http://localhost:5173`**
 
 ---
 
-## 📖 Hướng Dẫn Sử Dụng Giao Diện
+## 🔄 Kiến Trúc Luồng Xử Lý (System Flow Architecture)
 
-1. **Kiểm tra kết nối**: Bấm **"Kiểm tra kết nối"** ở thẻ trạng thái để xác nhận kết nối giữa Backend, Google Drive, Google Sheets và Gemini API.
-2. **Quét tìm ảnh mới**: Bấm nút **"Quét Google Drive"** để phát hiện tất cả sách và trang ảnh mới. Các trang mới sẽ xuất hiện trên danh sách với trạng thái Chờ (`pending`).
-3. **Chạy OCR cho sách**:
-   - **Chạy từng cuốn**: Bấm nút **"Chạy Batch (X)"** trên từng thẻ cuốn sách để gửi riêng cuốn đó.
-   - **Chạy tất cả**: Bấm **"Gom & Gửi Tất Cả Sách"** ở bảng điều khiển trung tâm.
-4. **Theo dõi & Nhận kết quả**:
-   - Hệ thống tự động kiểm tra định kỳ hoặc bạn có thể bấm **"Check Batch"** để nạp kết quả ngay khi Gemini xử lý xong.
-   - Khi hoàn tất, trạng thái trang sẽ chuyển sang `done` kèm nội dung văn bản OCR trích xuất được.
-5. **Xem trước & Chỉnh sửa**: Bấm vào bất kỳ dòng nào trong bảng để xem ảnh gốc scan cùng kết quả văn bản OCR, hỗ trợ copy nhanh văn bản.
-6. **Tải file ZIP Markdown**:
-   - Bấm nút **"Tải ZIP"** tại thẻ từng cuốn sách để tải riêng cuốn đó.
-   - Hoặc bấm **"Tải ZIP"** tại bảng điều khiển chính để tải toàn bộ các cuốn đã hoàn thành.
-7. **Xóa sách hoàn thành**: Bấm nút **"Xóa sách"** (màu đỏ) trên thẻ cuốn sách để dọn dẹp các dòng đã xử lý xong khỏi Google Sheet.
+### 1. Luồng Quét Google Drive (`/api/scan`)
+
+```mermaid
+flowchart TD
+    A[Người dùng bấm 'Quét Google Drive'] --> B[Gọi API /api/scan]
+    B --> C[Apps Script: scanDriveFolders]
+    C --> D[Duyệt DriveFolder lấy danh sách ảnh + metadata]
+    D --> E[Lấy danh sách bản ghi hiện có trong Sheet]
+    E --> F[Lọc chỉ lấy ảnh mới chưa có trong Sheet]
+    F --> G[Apps Script: appendRows ghi 1 lượt toàn bộ ảnh pending vào Sheet]
+    G --> H[Cập nhật UI bảng điều khiển & thẻ Sách]
+```
+
+### 2. Luồng Xử Lý Batch OCR (`/api/sync` hoặc Chạy Batch từng cuốn)
+
+```mermaid
+flowchart TD
+    A[Người dùng bấm 'Chạy Batch' cuốn sách] --> B[Gọi API /api/sync?bookName=...]
+    B --> C[Lấy danh sách trang pending của cuốn sách từ Sheet]
+    C --> D[Tải blob ảnh từ Apps Script]
+    D --> E[Đóng gói JSONL & Upload lên Gemini File API]
+    E --> F[Khởi tạo Gemini Batch Job]
+    F --> G[Lưu BatchJobRecord vào Sheet BATCH_JOBS]
+    G --> H[Cập nhật trạng thái các trang thành 'batch_submitted']
+```
+
+### 3. Luồng Kiểm Tra & Nạp Kết Quả Batch (`Check Batch`)
+
+```mermaid
+flowchart TD
+    A[Bấm 'Check Batch' hoặc Cronjob nền] --> B[Lấy danh sách BatchJob đang chạy từ Sheet]
+    B --> C[Gemini Batch Client: checkBatchStatus]
+    C -->|Đang xử lý / RUNNING| D[Giữ nguyên trạng thái & hiển thị log]
+    C -->|Hoàn thành / COMPLETED| E[Tải kết quả file JSONL từ Gemini]
+    E --> F[Trích xuất OCR text & parse metadata trang]
+    F --> G[Apps Script: batchUpdateRows cập nhật trạng thái 'done' & OCR text]
+    G --> H[Đánh dấu BatchJob là 'completed']
+```
+
+---
+
+## 📊 Trạng Thái Hệ Thống
+
+- **Cập nhật lần cuối**: 2026-09-22 15:35
+- **Đã hoàn thành**:
+  - Tách bạch hoàn toàn luồng Quét (`pending`) và Thực thi OCR.
+  - Tối ưu Apps Script `appendRows` chèn hàng loạt (batch insert) trong 1 request, khắc phục triệt để nghẽn quota/thời gian khi có hàng trăm trang ảnh.
+  - Tối ưu giao diện bảng trang: Chia chunk 20 items với Infinite Scroll kết hợp thanh tìm kiếm tức thì theo tên trang / thứ tự.
+  - Thay thế toàn bộ Window Alert mặc định bằng `CustomDialogModal` (Confirm, Alert, Danger actions).
+  - Loại bỏ các dropdown trùng lặp, tối ưu header và thiết lập Gemini Batch Mode làm mặc định.
+  - Tích hợp pipeline kiểm định: format, lint, type check, unit tests (21/21 passed), knip, graphify.
+- **Đang dở**: Không có.
+- **Nợ kỹ thuật / Cần lưu ý**:
+  - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
+
+---
+
+## 📜 Changelog
+
+### 2026-09-22
+
+- **Thêm/sửa**:
+  - Cập nhật toàn bộ tài liệu kiến trúc, diagrams hệ thống, quy trình luồng quét - batch - sync - export.
+  - Bổ sung tài liệu chuẩn hóa `AI_WORKFLOW.md`, `README.md` (Trạng thái hệ thống & Changelog).
+  - Tối ưu hóa UI render hàng trăm trang bằng chunked infinite scroll (20 trang/chunk) + instant search.
+  - Tối ưu Apps Script với API `appendRows` bulk insert.
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (21/21 pass) | knip ✅ | graphify ✅ (292 nodes, 20 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`apps-script/Code.gs`](apps-script/Code.gs), [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte), [`src/lib/components/CustomDialogModal.svelte`](src/lib/components/CustomDialogModal.svelte), [`README.md`](README.md), [`AI_WORKFLOW.md`](AI_WORKFLOW.md).
