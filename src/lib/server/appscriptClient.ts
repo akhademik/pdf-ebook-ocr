@@ -109,6 +109,20 @@ export class AppscriptClient {
   }
 
   /**
+   * Append multiple rows to the Google Sheet in a single batch API call.
+   */
+  async appendRows(
+    records: SheetRecord[],
+  ): Promise<{ success: boolean; count: number; startRow?: number }> {
+    if (!records || records.length === 0) {
+      return { success: true, count: 0 };
+    }
+    return this.callAction<{ success: boolean; count: number; startRow?: number }>('appendRows', {
+      data: records,
+    });
+  }
+
+  /**
    * Update row by driveFileId or hash.
    */
   async updateRow(

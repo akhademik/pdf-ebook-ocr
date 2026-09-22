@@ -84,6 +84,8 @@ function doPost(e) {
         return jsonResponse(readSheetRows());
       case 'appendRow':
         return jsonResponse(appendRow(body.data));
+      case 'appendRows':
+        return jsonResponse(appendRows(body.data || body.items || body.rows));
       case 'updateRow':
         return jsonResponse(
           updateRow(body.driveFileId || body.hash || body.batchRequestKey, body.data),
@@ -310,6 +312,40 @@ function appendRow(item) {
 
   sheet.appendRow(rowData);
   return { success: true, rowIndex: sheet.getLastRow() };
+}
+
+/**
+ * Thêm hàng loạt nhiều dòng vào Sheet cùng một lúc (Batch Insert cực nhanh trong 1 API call)
+ */
+function appendRows(items) {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheets()[0];
+  const { map, totalCols } = getColumnIndexMap(sheet, MAIN_SHEET_HEADERS);
+
+  const rowsData = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const rowData = new Array(totalCols).fill('');
+    rowData[map.fileName] = item.fileName || item.file_name || '';
+    rowData[map.status] = item.status || 'pending';
+    rowData[map.driveFileId] = item.driveFileId || item.file_id || '';
+    rowData[map.ocrText] = item.ocrText || item.ocr_text || '';
+    rowData[map.errorMessage] = item.errorMessage || item.error_message || '';
+    rowData[map.bookName] = item.bookName || item.book_name || 'Default';
+    rowData[map.batchId] = item.batchId || item.batch_id || '';
+    rowData[map.batchRequestKey] = item.batchRequestKey || item.batch_request_key || '';
+    rowData[map.note] = item.note || '';
+    rowsData.push(rowData);
+  }
+
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, rowsData.length, totalCols).setValues(rowsData);
+
+  return { success: true, count: rowsData.length, startRow: lastRow + 1 };
 }
 
 /**

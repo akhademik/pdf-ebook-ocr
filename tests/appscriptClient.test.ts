@@ -86,4 +86,46 @@ describe('AppscriptClient', () => {
       }),
     );
   });
+
+  it('should call appendRows with items array', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, count: 2, startRow: 2 }),
+    } as Response);
+
+    const records = [
+      {
+        fileName: '001.jpg',
+        status: 'pending' as const,
+        driveFileId: 'f1',
+        ocrText: '',
+        errorMessage: '',
+        note: '',
+      },
+      {
+        fileName: '002.jpg',
+        status: 'pending' as const,
+        driveFileId: 'f2',
+        ocrText: '',
+        errorMessage: '',
+        note: '',
+      },
+    ];
+
+    const result = await client.appendRows(records);
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(2);
+    expect(global.fetch).toHaveBeenCalledWith(
+      mockUrl,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          token: mockSecret,
+          action: 'appendRows',
+          data: records,
+        }),
+      }),
+    );
+  });
 });

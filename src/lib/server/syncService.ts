@@ -59,6 +59,7 @@ export class SyncService {
 
     let discoveredCount = 0;
     const booksSet = new Set<string>();
+    const newRecordsToAppend: SheetRecord[] = [];
 
     for (const file of driveFiles) {
       const book = file.bookName || 'Default';
@@ -77,13 +78,17 @@ export class SyncService {
           batchId: '',
           batchRequestKey: file.id,
         };
-        await this.appscriptClient.appendRow(newRecord);
+        newRecordsToAppend.push(newRecord);
         recordById.set(file.id, newRecord);
-        discoveredCount++;
       }
     }
 
-    if (discoveredCount > 0) {
+    if (newRecordsToAppend.length > 0) {
+      logger.info(
+        `Batch inserting ${newRecordsToAppend.length} new records into Google Sheet in 1 request...`,
+      );
+      await this.appscriptClient.appendRows(newRecordsToAppend);
+      discoveredCount = newRecordsToAppend.length;
       logger.info(`Added ${discoveredCount} newly discovered images to Google Sheet as "pending".`);
     } else {
       logger.info(`Google Sheet is up to date (${existingRecords.length} records).`);
@@ -148,6 +153,7 @@ export class SyncService {
       }
 
       // 3. Append newly discovered images
+      const newRecordsToAppend: SheetRecord[] = [];
       for (const file of driveFiles) {
         const existing = recordById.get(file.id) || recordById.get(file.name);
         if (!existing) {
@@ -162,13 +168,17 @@ export class SyncService {
             batchId: '',
             batchRequestKey: file.id,
           };
-          await this.appscriptClient.appendRow(newRecord);
+          newRecordsToAppend.push(newRecord);
           recordById.set(file.id, newRecord);
           summary.discovered++;
         }
       }
 
-      if (summary.discovered > 0) {
+      if (newRecordsToAppend.length > 0) {
+        logger.info(
+          `Batch inserting ${newRecordsToAppend.length} new records into Google Sheet in 1 request...`,
+        );
+        await this.appscriptClient.appendRows(newRecordsToAppend);
         logger.info(`Added ${summary.discovered} new record(s) to Sheet.`);
       }
 
@@ -449,6 +459,7 @@ export class SyncService {
         else if (rec.fileName) recordById.set(rec.fileName, rec);
       }
 
+      const newRecordsToAppend: SheetRecord[] = [];
       for (const file of driveFiles) {
         const existing = recordById.get(file.id) || recordById.get(file.name);
         if (!existing) {
@@ -461,10 +472,17 @@ export class SyncService {
             note: '',
             bookName: file.bookName || 'Default',
           };
-          await this.appscriptClient.appendRow(newRecord);
+          newRecordsToAppend.push(newRecord);
           recordById.set(file.id, newRecord);
           summary.discovered++;
         }
+      }
+
+      if (newRecordsToAppend.length > 0) {
+        logger.info(
+          `Batch inserting ${newRecordsToAppend.length} new records into Google Sheet in 1 request...`,
+        );
+        await this.appscriptClient.appendRows(newRecordsToAppend);
       }
 
       const refreshedRecords = await this.appscriptClient.readSheetRows();

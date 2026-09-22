@@ -54,6 +54,14 @@ describe('syncService (Custom Sheet Schema & Batch Mode)', () => {
         sheetDb.push(record);
         return { success: true, rowIndex: sheetDb.length + 1 };
       }),
+      appendRows: vi.fn().mockImplementation(async (records: SheetRecord[]) => {
+        sheetDb.push(...records);
+        return {
+          success: true,
+          count: records.length,
+          startRow: sheetDb.length - records.length + 2,
+        };
+      }),
       updateRow: vi.fn().mockImplementation(async (driveFileId: string, patch: any) => {
         const index = sheetDb.findIndex((r) => r.driveFileId === driveFileId);
         if (index !== -1) {
