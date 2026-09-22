@@ -1,0 +1,55 @@
+{
+  "name": "docker-ocr",
+  "version": "1.0.0",
+  "description": "Automated Google Drive to Gemini OCR with Google Sheets database & Markdown export",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node build/index.js",
+    "cli": "tsx src/cli.ts",
+    "format": "prettier --write .",
+    "lint": "eslint src/",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@google/genai": "^0.2.0",
+    "dotenv": "^16.4.7",
+    "jszip": "^3.10.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@lucide/svelte": "^1.47.0",
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.70.3",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.13.9",
+    "@types/node-cron": "^3.0.11",
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "eslint": "^9.21.0",
+    "eslint-plugin-svelte": "^3.1.2",
+    "prettier": "^3.5.3",
+    "prettier-plugin-svelte": "^3.4.0",
+    "svelte": "^5.57.1",
+    "svelte-check": "^4.7.6",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.8"
+  },
+  "keywords": [
+    "ocr",
+    "gemini",
+    "google-drive",
+    "google-sheets",
+    "docker",
+    "sveltekit"
+  ],
+  "author": "",
+  "license": "ISC"
+}

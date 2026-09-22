@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": ["build/**", ".svelte-kit/**", "output/**"],
+  "ignoreDependencies": ["eslint-plugin-svelte", "prettier-plugin-svelte"],
+  "ignoreExportsUsedInFile": true
+}
