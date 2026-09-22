@@ -76,14 +76,10 @@ DRIVE_FOLDER_ID=1a2b3c4d5e6f7g8h9i0jKLMNOP
 GEMINI_API_KEY=AIzaSy...
 GEMINI_MODEL=gemini-3.5-flash-lite
 
-# 4. Chế độ Batch (true: giảm 50% chi phí, false: OCR từng ảnh trực tiếp)
+# 4. Cấu hình Batch API (tiết kiệm 50% chi phí)
 USE_BATCH_MODE=true
-
-# 5. Cấu hình chu kỳ tự động
 BATCH_POLL_INTERVAL_MINUTES=20
 BATCH_MAX_IMAGES_PER_JOB=300
-POLL_INTERVAL_MINUTES=5
-MAX_CONCURRENCY=3
 ```
 
 ---
