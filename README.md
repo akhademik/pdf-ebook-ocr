@@ -8,24 +8,43 @@
 
 ## Trạng thái hệ thống
 
-- Cập nhật lần cuối: 2026-09-22 13:50
+- Cập nhật lần cuối: 2026-09-22 14:38
 - Đã hoàn thành:
+  - **Custom Dialog & Confirm Modal (`CustomDialogModal.svelte`)**: Thay thế toàn bộ `window.alert` và `window.confirm` mặc định bằng hệ thống Modal tùy biến chuẩn Tailwind CSS, hỗ trợ đa dạng variant (`info`, `success`, `warning`, `error`, `confirm`) kèm hiệu ứng backdrop blur và phím tắt Escape.
+  - **Nút xóa & Icon màu đỏ nổi bật**: Nút xóa sách trong `BooksOverviewCard.svelte` được làm nổi bật với màu đỏ `text-rose-400 bg-rose-500/10 border-rose-500/20` giúp người dùng dễ dàng nhận biết.
+  - **Tách biệt quét Drive (Discovery) và thực thi Batch OCR**: Khi reload/khởi động/quét cron, hệ thống **chỉ quét nạp file vào Google Sheet với trạng thái `pending`**, không tự động chạy OCR trước khi người dùng bấm nút duyệt.
+  - **Chỉ chạy OCR khi người dùng chủ động yêu cầu**: Bấm "Chạy Batch" cho từng cuốn sách hoặc "Gom & Gửi Tất Cả Sách".
+  - **Cột `note` để trống cho người dùng**: Không tự động điền MD5 hash vào cột `note`, để người dùng tự do ghi chú.
+  - **Tối ưu Header**: Loại bỏ selector model trùng lặp trên Header (giữ nguyên selector trong Control Panel).
   - **Gemini Batch API Mode (`task.md`)**: Hỗ trợ gom hàng trăm/hàng nghìn trang ảnh theo từng cuốn sách (subfolder), tự động build JSONL, upload lên Google AI File API, tạo Batch Job và định kỳ poll kết quả (giảm 50% chi phí API).
   - **Quản lý 2 bảng Google Sheet**:
-    - Sheet chính: `[fileName, status, driveFileId, ocrText, errorMessage, note, bookName, batchId, batchRequestKey]`
+    - Sheet chính: `[fileName, status, driveFileId, ocrText, errorMessage, bookName, batchId, batchRequestKey, note]`
     - Sheet phụ `batch_jobs`: `[batchId, bookName, submittedAt, status, lastCheckedAt, totalImages, errorMessage]`
-  - **Tự động quét theo Subfolder (Quy ước mỗi cuốn sách 1 thư mục con)**: Quét toàn bộ thư mục con bên trong Drive Folder, tự động gán `bookName` bằng tên thư mục con.
-  - **Prompt Editor UI**: Tùy chỉnh prompt OCR trực tiếp từ giao diện, mặc định 10 quy tắc OCR tiếng Việt chuẩn xác (giữ nguyên ngoại ngữ nguyên văn, định dạng Markdown `**đậm**`, `*nghiêng*`, `[CÓ HÌNH]`).
-  - **Xuất ZIP Markdown phân cấp**: Nén in-memory tải thẳng `.zip` về máy, tự động gom file Markdown vào folder tên sách tương ứng.
+  - **Tự động quét theo Subfolder**: Quét toàn bộ thư mục con bên trong Drive Folder, tự động gán `bookName` bằng tên thư mục con.
+  - **Prompt Editor UI**: Tùy chỉnh prompt OCR trực tiếp từ giao diện.
+  - **Xuất ZIP Markdown phân cấp**: Nén in-memory tải thẳng `.zip` về máy theo từng cuốn sách hoặc tất cả.
   - **3 Model Gemini Flash**: Mặc định `gemini-3.5-flash-lite`, Fallback 1 `gemini-3.1-flash-lite`, Fallback 2 `gemini-2.5-flash`.
   - Frontend UI Dashboard SvelteKit 5 (Runes) + TypeScript + Tailwind CSS.
-  - Bộ kiểm thử Unit Tests Vitest (8/8 suites, 21/21 tests pass 100%).
+  - Bộ kiểm thử Unit Tests Vitest (8/8 suites, 22/22 tests pass 100%).
 - Đang dở: Không có
 - Biết trước còn thiếu / nợ kỹ thuật: Không có
 
 ---
 
 ## Changelog
+
+### 2026-09-22 (Custom Modals & Red Delete Button)
+
+- **Custom Modal & Confirmation Dialog**: Tạo `src/lib/types/modal.ts` và `src/lib/components/CustomDialogModal.svelte` thay thế toàn bộ `window.alert()` và `window.confirm()` mặc định của trình duyệt.
+- **Red Delete Button / Icon**: Cập nhật nút xóa sách trong `BooksOverviewCard.svelte` sang màu đỏ nổi bật với icon `Trash2` và nhãn "Xóa sách".
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ (`svelte-check` 0 error, 0 warning) | test ✅ (8/8 suites, 22/22 tests) | knip ✅ (0 issue) | build ✅
+
+### 2026-09-22 (Bổ sung cải tiến kiểm soát OCR & Header)
+
+- **Ngăn tự động OCR khi khởi động/reload**: Cập nhật cron scheduler và quy trình quét chỉ thực hiện Discovery (quét ảnh, cập nhật trạng thái `pending` lên Google Sheet). OCR chỉ kích hoạt khi người dùng bấm nút thực thi.
+- **Để trống cột `note`**: Sửa logic gán dòng mới trong `syncService.ts` và Apps Script `Code.gs` để cột `note` để trống (`""`) thay vì gán hash checksum, cho phép người dùng tùy ý ghi chú.
+- **Dọn dẹp Header**: Bỏ dropdown chọn model bị trùng lặp trên Header bar, tinh gọn UI.
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ (`svelte-check` 0 error, 0 warning) | test ✅ (8/8 suites, 22/22 tests) | knip ✅ (0 issue) | build ✅
 
 ### 2026-09-22
 

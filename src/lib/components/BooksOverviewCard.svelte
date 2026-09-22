@@ -151,10 +151,11 @@
             <button
               onclick={() => onDeleteBook(book.bookName)}
               type="button"
-              class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
+              class="px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer"
               title="Xóa cuốn này khỏi Sheet 1 và batch_jobs sau khi đã hoàn thành"
             >
-              <Trash2 class="w-3.5 h-3.5" />
+              <Trash2 class="w-3.5 h-3.5 text-rose-400" />
+              <span class="hidden sm:inline">Xóa sách</span>
             </button>
           </div>
         </div>

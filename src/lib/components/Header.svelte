@@ -1,22 +1,15 @@
 <script lang="ts">
-  import { Bot, RefreshCw, Cpu, Settings } from '@lucide/svelte';
-  import type { GeminiModelInfo } from '$lib/types/config.js';
+  import { Bot, RefreshCw, Settings } from '@lucide/svelte';
 
   interface Props {
     isRefreshing: boolean;
     onRefresh: () => void;
-    currentModel: string;
-    availableModels: GeminiModelInfo[];
-    onModelChange: (model: string) => void;
     onOpenPromptEditor: () => void;
   }
 
   let {
     isRefreshing,
     onRefresh,
-    currentModel,
-    availableModels,
-    onModelChange,
     onOpenPromptEditor,
   }: Props = $props();
 </script>
@@ -39,28 +32,6 @@
     </div>
 
     <div class="flex items-center gap-2.5">
-      <!-- Model Selector -->
-      <div class="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1">
-        <Cpu class="w-3.5 h-3.5 text-indigo-400" />
-        <span class="text-xs text-slate-400 hidden md:inline">Model:</span>
-        <select
-          value={currentModel}
-          onchange={(e) => onModelChange((e.target as HTMLSelectElement).value)}
-          aria-label="Chọn Model Gemini OCR"
-          class="bg-transparent text-xs font-semibold text-slate-200 focus:outline-hidden cursor-pointer"
-        >
-          {#if availableModels.length === 0}
-            <option value={currentModel} class="bg-slate-900 text-slate-200">{currentModel}</option>
-          {:else}
-            {#each availableModels as m}
-              <option value={m.id} class="bg-slate-900 text-slate-200">
-                ⚡ {m.displayName || m.name || m.id}
-              </option>
-            {/each}
-          {/if}
-        </select>
-      </div>
-
       <button
         onclick={onOpenPromptEditor}
         type="button"

@@ -72,7 +72,7 @@ export class SyncService {
           driveFileId: file.id,
           ocrText: '',
           errorMessage: '',
-          note: file.md5Checksum || '',
+          note: '',
           bookName: book,
           batchId: '',
           batchRequestKey: file.id,
@@ -157,7 +157,7 @@ export class SyncService {
             driveFileId: file.id,
             ocrText: '',
             errorMessage: '',
-            note: file.md5Checksum || '',
+            note: '',
             bookName: file.bookName || 'Default',
             batchId: '',
             batchRequestKey: file.id,
@@ -456,7 +456,7 @@ export class SyncService {
             driveFileId: file.id,
             ocrText: '',
             errorMessage: '',
-            note: file.md5Checksum || '',
+            note: '',
             bookName: file.bookName || 'Default',
           };
           await this.appscriptClient.appendRow(newRecord);

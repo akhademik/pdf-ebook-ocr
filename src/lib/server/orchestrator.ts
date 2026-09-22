@@ -262,17 +262,17 @@ class ServiceOrchestrator {
     }
 
     if (useBatchMode) {
-      // 1. Submit cron job (quét & gom batch)
-      const submitCron = `*/${pollIntervalMinutes} * * * *`;
-      logger.info(`Scheduler initialized for Batch Submit cron: ${submitCron}`);
-      this.cronSubmitTask = cron.schedule(submitCron, async () => {
-        logger.info('Scheduler triggered batch submission cycle...');
+      // 1. Discovery cron job (chỉ quét Drive và nạp file mới vào Sheet dạng pending, KHÔNG tự động OCR)
+      const discoverCron = `*/${pollIntervalMinutes} * * * *`;
+      logger.info(`Scheduler initialized for Drive Discovery cron: ${discoverCron}`);
+      this.cronSubmitTask = cron.schedule(discoverCron, async () => {
+        logger.info('Scheduler triggered Drive discovery cycle (finding new pending images)...');
         if (this.syncService) {
-          await this.syncService.submitPendingBatches();
+          await this.syncService.discoverAndSyncSheet();
         }
       });
 
-      // 2. Poll cron job (kiểm tra trạng thái batch và tải kết quả)
+      // 2. Poll cron job (kiểm tra trạng thái batch đã gửi và cập nhật kết quả)
       const pollCron = `*/${batchPollIntervalMinutes} * * * *`;
       logger.info(`Scheduler initialized for Batch Poll cron: ${pollCron}`);
       this.cronPollTask = cron.schedule(pollCron, async () => {
@@ -282,13 +282,13 @@ class ServiceOrchestrator {
         }
       });
     } else {
-      // Direct Realtime cron
+      // Direct Realtime cron (chỉ quét nạp pending)
       const cronExpr = `*/${pollIntervalMinutes} * * * *`;
-      logger.info(`Scheduler initialized with direct sync cron: ${cronExpr}`);
+      logger.info(`Scheduler initialized with Drive discovery cron: ${cronExpr}`);
       this.cronSubmitTask = cron.schedule(cronExpr, async () => {
-        logger.info('Scheduler triggered direct sync cycle...');
+        logger.info('Scheduler triggered Drive discovery cycle...');
         if (this.syncService) {
-          await this.syncService.runSyncCycle();
+          await this.syncService.discoverAndSyncSheet();
         }
       });
     }

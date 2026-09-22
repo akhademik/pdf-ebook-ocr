@@ -322,7 +322,7 @@ function appendRow(item) {
   rowData[map.bookName] = item.bookName || item.book_name || 'Default';
   rowData[map.batchId] = item.batchId || item.batch_id || '';
   rowData[map.batchRequestKey] = item.batchRequestKey || item.batch_request_key || '';
-  rowData[map.note] = item.note || item.hash || '';
+  rowData[map.note] = item.note || '';
 
   sheet.appendRow(rowData);
   return { success: true, rowIndex: sheet.getLastRow() };

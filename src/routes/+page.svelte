@@ -9,10 +9,12 @@
   import FileTable from '$lib/components/FileTable.svelte';
   import OcrPreviewModal from '$lib/components/OcrPreviewModal.svelte';
   import PromptEditorModal from '$lib/components/PromptEditorModal.svelte';
+  import CustomDialogModal from '$lib/components/CustomDialogModal.svelte';
   import LogConsole from '$lib/components/LogConsole.svelte';
   import type { SystemStatusResponse } from '$lib/types/status.js';
   import type { SheetRecord } from '$lib/types/ocr.js';
   import type { SetupCheckResult } from '$lib/types/config.js';
+  import type { DialogOptions } from '$lib/types/modal.js';
 
   let statusData = $state<SystemStatusResponse>({
     isConfigured: false,
@@ -49,6 +51,67 @@
   let processingFileId = $state<string | null>(null);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  let dialog = $state<DialogOptions>({
+    isOpen: false,
+    variant: 'info',
+    title: '',
+    message: '',
+    bullets: [],
+    confirmText: 'Đã hiểu',
+    cancelText: 'Hủy bỏ',
+  });
+
+  function showInfoModal(title: string, message: string, bullets?: string[]) {
+    dialog = {
+      isOpen: true,
+      variant: 'info',
+      title,
+      message,
+      bullets,
+      confirmText: 'Đã hiểu',
+    };
+  }
+
+  function showSuccessModal(title: string, message: string, bullets?: string[]) {
+    dialog = {
+      isOpen: true,
+      variant: 'success',
+      title,
+      message,
+      bullets,
+      confirmText: 'Đã hiểu',
+    };
+  }
+
+  function showErrorModal(title: string, message: string, bullets?: string[]) {
+    dialog = {
+      isOpen: true,
+      variant: 'error',
+      title,
+      message,
+      bullets,
+      confirmText: 'Đóng',
+    };
+  }
+
+  function showConfirmModal(
+    title: string,
+    message: string,
+    onConfirm: () => void | Promise<void>,
+    confirmText = 'Xác nhận xóa',
+    cancelText = 'Hủy bỏ',
+  ) {
+    dialog = {
+      isOpen: true,
+      variant: 'confirm',
+      title,
+      message,
+      confirmText,
+      cancelText,
+      onConfirm,
+    };
+  }
+
   async function fetchStatus() {
     isRefreshing = true;
     try {
@@ -70,15 +133,17 @@
       if (res.ok) {
         const data = (await res.json()) as { discovered: number; total: number; books: string[] };
         await fetchStatus();
-        alert(
-          `Đã quét xong Google Drive!\n- Tổng số ảnh trên Drive: ${data.total}\n- Ảnh mới nạp vào Sheet: ${data.discovered}\n- Danh sách sách: ${data.books.join(', ') || 'Default'}`,
-        );
+        showSuccessModal('Đã quét xong Google Drive!', 'Đã đồng bộ danh sách ảnh từ Drive vào Sheet dạng Pending.', [
+          `Tổng số ảnh trên Google Drive: ${data.total}`,
+          `Ảnh mới nạp vào Sheet: ${data.discovered}`,
+          `Danh sách sách: ${data.books.join(', ') || 'Default'}`,
+        ]);
       } else {
         const err = (await res.json()) as { error?: string };
-        alert(`Lỗi khi quét Drive: ${err.error || 'Thất bại'}`);
+        showErrorModal('Lỗi khi quét Google Drive', err.error || 'Thao tác không thành công.');
       }
     } catch (err: unknown) {
-      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+      showErrorModal('Lỗi khi quét Google Drive', err instanceof Error ? err.message : String(err));
     } finally {
       isScanningDrive = false;
     }
@@ -135,11 +200,11 @@
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
-        alert(`Lỗi khi submit batch cho cuốn ${bookName}: ${err.error || 'Thất bại'}`);
+        showErrorModal('Lỗi khi gửi Batch Job', err.error || `Không thể gửi batch cho cuốn ${bookName}`);
       }
       await fetchStatus();
     } catch (err: unknown) {
-      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+      showErrorModal('Lỗi khi gửi Batch Job', err instanceof Error ? err.message : String(err));
     } finally {
       isSyncing = false;
     }
@@ -150,26 +215,29 @@
   }
 
   async function handleDeleteBook(bookName: string) {
-    const ok = confirm(
-      `Bạn có chắc chắn muốn xóa toàn bộ dữ liệu của cuốn sách "${bookName}" khỏi Sheet 1 và danh sách batch_jobs không?`,
+    showConfirmModal(
+      'Xác nhận xóa cuốn sách',
+      `Bạn có chắc chắn muốn xóa toàn bộ dữ liệu của cuốn sách "${bookName}" khỏi Sheet 1 và danh sách batch_jobs không? Thao tác này sẽ xóa vĩnh viễn các dòng trên Google Sheet.`,
+      async () => {
+        try {
+          const res = await fetch(`/api/books/${encodeURIComponent(bookName)}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { deletedCount: number };
+            await fetchStatus();
+            showSuccessModal('Đã xóa thành công', `Đã xóa ${data.deletedCount} dòng của cuốn "${bookName}".`);
+          } else {
+            const err = (await res.json()) as { error?: string };
+            showErrorModal('Lỗi khi xóa', err.error || 'Thao tác không thành công');
+          }
+        } catch (err: unknown) {
+          showErrorModal('Lỗi khi xóa', err instanceof Error ? err.message : String(err));
+        }
+      },
+      'Xóa dữ liệu',
+      'Hủy bỏ',
     );
-    if (!ok) return;
-
-    try {
-      const res = await fetch(`/api/books/${encodeURIComponent(bookName)}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { deletedCount: number };
-        alert(`Đã xóa thành công ${data.deletedCount} dòng của cuốn "${bookName}".`);
-        await fetchStatus();
-      } else {
-        const err = (await res.json()) as { error?: string };
-        alert(`Lỗi khi xóa: ${err.error || 'Thất bại'}`);
-      }
-    } catch (err: unknown) {
-      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
-    }
   }
 
   async function handlePollBatches() {
@@ -197,7 +265,8 @@
 
       const count = res.headers.get('X-Exported-Count') || '0';
       if (parseInt(count, 10) === 0) {
-        alert(
+        showInfoModal(
+          'Chưa có dữ liệu xuất',
           targetBook
             ? `Chưa có trang nào của cuốn "${targetBook}" hoàn thành OCR để xuất ZIP.`
             : 'Chưa có trang nào hoàn thành OCR để xuất ZIP.',
@@ -222,7 +291,7 @@
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err: unknown) {
-      alert(`Lỗi khi tải ZIP markdown: ${err instanceof Error ? err.message : String(err)}`);
+      showErrorModal('Lỗi khi tải ZIP Markdown', err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -255,9 +324,6 @@
 <Header
   {isRefreshing}
   onRefresh={fetchStatus}
-  currentModel={statusData.geminiModel}
-  availableModels={statusData.availableModels}
-  onModelChange={handleModelChange}
   onOpenPromptEditor={() => (isPromptEditorOpen = true)}
 />
 
@@ -330,3 +396,9 @@
   isOpen={isPromptEditorOpen}
   onClose={() => (isPromptEditorOpen = false)}
 />
+
+<CustomDialogModal
+  {dialog}
+  onClose={() => (dialog.isOpen = false)}
+/>
+
