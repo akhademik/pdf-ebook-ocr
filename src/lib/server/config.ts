@@ -23,7 +23,10 @@ export function loadConfig(): AppConfig {
   const outputDir = process.env.OUTPUT_DIR?.trim() || './output';
   const pageOrderRegexStr = process.env.PAGE_ORDER_REGEX?.trim();
 
-  const useBatchMode = process.env.USE_BATCH_MODE?.trim().toLowerCase() === 'true';
+  const useBatchMode =
+    process.env.USE_BATCH_MODE === undefined || process.env.USE_BATCH_MODE.trim() === ''
+      ? true
+      : process.env.USE_BATCH_MODE.trim().toLowerCase() !== 'false';
   const batchWaitBeforeSubmitMinutes = parseInt(
     process.env.BATCH_WAIT_BEFORE_SUBMIT_MINUTES?.trim() || '10',
     10,

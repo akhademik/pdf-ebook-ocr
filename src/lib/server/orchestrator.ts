@@ -109,7 +109,10 @@ class ServiceOrchestrator {
       }
     }
 
-    const useBatchMode = process.env.USE_BATCH_MODE?.trim().toLowerCase() === 'true';
+    const useBatchMode =
+      process.env.USE_BATCH_MODE === undefined || process.env.USE_BATCH_MODE.trim() === ''
+        ? true
+        : process.env.USE_BATCH_MODE.trim().toLowerCase() !== 'false';
     const batchWaitBeforeSubmitMinutes = parseInt(
       process.env.BATCH_WAIT_BEFORE_SUBMIT_MINUTES || '10',
       10,
@@ -251,7 +254,7 @@ class ServiceOrchestrator {
 
   public initScheduler(
     pollIntervalMinutes: number,
-    useBatchMode: boolean = false,
+    useBatchMode: boolean = true,
     batchPollIntervalMinutes: number = 20,
   ) {
     if (this.cronSubmitTask) {
