@@ -47,6 +47,7 @@ describe('AppscriptClient', () => {
         md5Checksum: 'hash1',
         createdTime: '2026-01-01T00:00:00Z',
         mimeType: 'image/jpeg',
+        bookName: 'CuonSach1',
       },
     ];
 
@@ -59,6 +60,30 @@ describe('AppscriptClient', () => {
     const result = await client.listImages('folder123');
     expect(result.files.length).toBe(1);
     expect(result.files[0].name).toBe('001.jpg');
+    expect(result.files[0].bookName).toBe('CuonSach1');
     expect(result.folderName).toBe('Scans');
+  });
+
+  it('should call deleteBookRows with bookName', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, deletedCount: 15, bookName: 'CuonSach1' }),
+    } as Response);
+
+    const result = await client.deleteBookRows('CuonSach1');
+    expect(result.success).toBe(true);
+    expect(result.deletedCount).toBe(15);
+    expect(global.fetch).toHaveBeenCalledWith(
+      mockUrl,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          token: mockSecret,
+          action: 'deleteBookRows',
+          bookName: 'CuonSach1',
+        }),
+      }),
+    );
   });
 });

@@ -120,13 +120,6 @@
       </div>
 
       <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 col-span-2">
-        <p class="text-slate-500">Định dạng xuất:</p>
-        <p class="font-medium text-indigo-300 mt-0.5 text-xs">
-          Tệp nén .ZIP tự động chia theo thư mục sách (Book/page1.md...)
-        </p>
-      </div>
-
-      <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 col-span-2">
         <p class="text-slate-500">Lần chạy gần nhất:</p>
         <p class="font-medium text-slate-200 mt-0.5">{formattedTime}</p>
       </div>

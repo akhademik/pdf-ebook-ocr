@@ -146,6 +146,20 @@ export class AppscriptClient {
   }
 
   /**
+   * Delete all rows belonging to a book from Sheet 1 and batch_jobs.
+   */
+  async deleteBookRows(
+    bookName: string,
+  ): Promise<{ success: boolean; deletedCount: number; bookName: string }> {
+    return this.callAction<{ success: boolean; deletedCount: number; bookName: string }>(
+      'deleteBookRows',
+      {
+        bookName,
+      },
+    );
+  }
+
+  /**
    * Read all batch job records from sheet "batch_jobs".
    */
   async readBatchJobs(): Promise<BatchJobRecord[]> {

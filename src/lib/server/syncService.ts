@@ -54,14 +54,16 @@ export class SyncService {
   /**
    * Batch Mode: Discover images, group by bookName, and submit to Gemini Batch API.
    */
-  async submitPendingBatches(): Promise<SyncSummary> {
+  async submitPendingBatches(targetBookName?: string): Promise<SyncSummary> {
     if (this.isRunning) {
       logger.warn('Previous batch submission cycle is still running. Skipping.');
       return { discovered: 0, processed: 0, succeeded: 0, failed: 0, skipped: 0 };
     }
 
     this.isRunning = true;
-    logger.info('=== Starting Batch Submission Cycle ===');
+    logger.info(
+      `=== Starting Batch Submission Cycle ${targetBookName ? `for "${targetBookName}"` : ''} ===`,
+    );
 
     const summary: SyncSummary = {
       discovered: 0,
@@ -114,10 +116,16 @@ export class SyncService {
 
       // 4. Refresh records to find all 'pending' images
       const refreshedRecords = await this.appscriptClient.readSheetRows();
-      const pendingRecords = refreshedRecords.filter((r) => r.status === 'pending');
+      let pendingRecords = refreshedRecords.filter((r) => r.status === 'pending');
+
+      if (targetBookName && targetBookName !== 'all') {
+        pendingRecords = pendingRecords.filter((r) => (r.bookName || 'Default') === targetBookName);
+      }
 
       if (pendingRecords.length === 0) {
-        logger.info('No pending images to batch.');
+        logger.info(
+          `No pending images to batch${targetBookName ? ` for book "${targetBookName}"` : ''}.`,
+        );
         this.lastSummary = summary;
         this.lastSyncTime = new Date().toISOString();
         return summary;

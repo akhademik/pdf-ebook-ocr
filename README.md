@@ -42,35 +42,37 @@
 Bảng tính Google Sheets của bạn cần có **2 trang tính (sheets)**:
 
 ### 1.1 Trang tính 1 (Sheet chính - Đặt tên mặc định `Sheet1` hoặc trang đầu tiên)
+
 Dòng 1 (Row 1 Header) bao gồm 9 cột cố định:
 
-| Cột | Tên Header | Ý nghĩa |
-| :--- | :--- | :--- |
-| **A** | `fileName` | Tên file ảnh (ví dụ: `001.jpg`, `page_001.png`) |
-| **B** | `status` | Trạng thái (`pending`, `batching`, `batch_submitted`, `processing`, `done`, `error`) |
-| **C** | `driveFileId` | ID định danh của file trên Google Drive |
-| **D** | `ocrText` | Kết quả văn bản OCR nhận diện được |
-| **E** | `errorMessage` | Thông báo lỗi chi tiết nếu quá trình OCR gặp sự cố |
-| **F** | `note` | Ghi chú hoặc MD5 Checksum của file ảnh |
-| **G** | `bookName` | Tên cuốn sách (tự động lấy theo tên thư mục con trên Drive) |
-| **H** | `batchId` | ID của lô Batch Job trên Gemini |
-| **I** | `batchRequestKey`| Khóa định danh ảnh trong file JSONL gửi lên Gemini Batch API |
+| Cột   | Tên Header        | Ý nghĩa                                                                              |
+| :---- | :---------------- | :----------------------------------------------------------------------------------- |
+| **A** | `fileName`        | Tên file ảnh (ví dụ: `001.jpg`, `page_001.png`)                                      |
+| **B** | `status`          | Trạng thái (`pending`, `batching`, `batch_submitted`, `processing`, `done`, `error`) |
+| **C** | `driveFileId`     | ID định danh của file trên Google Drive                                              |
+| **D** | `ocrText`         | Kết quả văn bản OCR nhận diện được                                                   |
+| **E** | `errorMessage`    | Thông báo lỗi chi tiết nếu quá trình OCR gặp sự cố                                   |
+| **F** | `note`            | Ghi chú hoặc MD5 Checksum của file ảnh                                               |
+| **G** | `bookName`        | Tên cuốn sách (tự động lấy theo tên thư mục con trên Drive)                          |
+| **H** | `batchId`         | ID của lô Batch Job trên Gemini                                                      |
+| **I** | `batchRequestKey` | Khóa định danh ảnh trong file JSONL gửi lên Gemini Batch API                         |
 
 ### 1.2 Trang tính 2 (Sheet phụ - Đặt tên chính xác là `batch_jobs`)
+
 Bấm nút `+` ở góc dưới Google Sheet để thêm trang tính mới và đổi tên thành **`batch_jobs`**.
 Dòng 1 (Row 1 Header) bao gồm 7 cột:
 
-| Cột | Tên Header | Ý nghĩa |
-| :--- | :--- | :--- |
-| **A** | `batchId` | ID Batch Job do Gemini trả về |
-| **B** | `bookName` | Tên cuốn sách của lô ảnh này |
-| **C** | `submittedAt` | Thời điểm gửi batch lên Gemini |
-| **D** | `status` | Trạng thái job (`pending`, `running`, `completed`, `failed`, `expired`) |
-| **E** | `lastCheckedAt` | Lần kiểm tra trạng thái gần nhất |
-| **F** | `totalImages` | Tổng số lượng trang/ảnh trong batch |
-| **G** | `errorMessage` | Thông báo lỗi nếu batch thất bại |
+| Cột   | Tên Header      | Ý nghĩa                                                                 |
+| :---- | :-------------- | :---------------------------------------------------------------------- |
+| **A** | `batchId`       | ID Batch Job do Gemini trả về                                           |
+| **B** | `bookName`      | Tên cuốn sách của lô ảnh này                                            |
+| **C** | `submittedAt`   | Thời điểm gửi batch lên Gemini                                          |
+| **D** | `status`        | Trạng thái job (`pending`, `running`, `completed`, `failed`, `expired`) |
+| **E** | `lastCheckedAt` | Lần kiểm tra trạng thái gần nhất                                        |
+| **F** | `totalImages`   | Tổng số lượng trang/ảnh trong batch                                     |
+| **G** | `errorMessage`  | Thông báo lỗi nếu batch thất bại                                        |
 
-> 💡 *Lưu ý*: Hàm `ensureHeader` trong Apps Script cũng sẽ tự động kiểm tra và khởi tạo các cột/sheet trên nếu chưa có khi bạn bấm **"Kiểm tra kết nối" (Setup Check)** trên Dashboard.
+> 💡 _Lưu ý_: Hàm `ensureHeader` trong Apps Script cũng sẽ tự động kiểm tra và khởi tạo các cột/sheet trên nếu chưa có khi bạn bấm **"Kiểm tra kết nối" (Setup Check)** trên Dashboard.
 
 ---
 
@@ -95,11 +97,13 @@ Dòng 1 (Row 1 Header) bao gồm 7 cột:
 ## 3. Hướng dẫn thiết lập Google Apps Script Bridge
 
 ### Bước 1: Dán mã nguồn Apps Script
+
 1. Mở file [Google Sheets](https://sheets.new) của bạn.
 2. Trên thanh menu, chọn **Tiện ích mở rộng (Extensions)** > **Apps Script**.
 3. Xóa toàn bộ nội dung mặc định, mở file [`apps-script/Code.gs`](file:///home/hajtran/dev/docker-ocr/apps-script/Code.gs) trong repo này, sao chép toàn bộ nội dung và dán vào.
 
 ### Bước 2: Đặt Secret Token bảo mật
+
 1. Trong giao diện Apps Script, bấm vào biểu tượng **Cài đặt dự án (Project Settings)** ⚙️ ở thanh bên trái.
 2. Cuộn xuống **Thuộc tính tập lệnh (Script Properties)** > Bấm **Thêm thuộc tính tập lệnh**:
    - **Thuộc tính (Property)**: `SECRET_TOKEN`
@@ -107,6 +111,7 @@ Dòng 1 (Row 1 Header) bao gồm 7 cột:
 3. Bấm **Lưu thuộc tính tập lệnh**.
 
 ### Bước 3: Triển khai thành Web App
+
 1. Bấm nút **Triển khai (Deploy)** ở góc trên bên phải > chọn **Tùy chọn triển khai mới (New deployment)**.
 2. Chọn loại **Ứng dụng web (Web app)**:
    - **Thực thi dưới dạng (Execute as)**: `Tôi (Me)`
@@ -154,14 +159,18 @@ MAX_CONCURRENCY=3
 ## 5. Chạy ứng dụng
 
 ### Chạy chế độ Phát triển (Dev Mode)
+
 ```bash
 pnpm install
 pnpm run dev
 ```
+
 Mở trình duyệt tại `http://localhost:5173`.
 
 ### Chạy bằng Docker Compose
+
 ```bash
 docker compose up -d --build
 ```
+
 Mở trình duyệt tại `http://localhost:3000`.

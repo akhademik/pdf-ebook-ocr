@@ -4,6 +4,7 @@
   import StatsCards from '$lib/components/StatsCards.svelte';
   import SetupStatusCard from '$lib/components/SetupStatusCard.svelte';
   import SyncActionPanel from '$lib/components/SyncActionPanel.svelte';
+  import BooksOverviewCard from '$lib/components/BooksOverviewCard.svelte';
   import BatchJobsTable from '$lib/components/BatchJobsTable.svelte';
   import FileTable from '$lib/components/FileTable.svelte';
   import OcrPreviewModal from '$lib/components/OcrPreviewModal.svelte';
@@ -25,7 +26,7 @@
     appscriptWebAppUrl: '',
     hasAppscriptSecret: false,
     hasGeminiKey: false,
-    useBatchMode: false,
+    useBatchMode: true,
     batchWaitBeforeSubmitMinutes: 10,
     batchPollIntervalMinutes: 20,
     batchMaxImagesPerJob: 300,
@@ -104,6 +105,51 @@
     }
   }
 
+  async function handleRunBookBatch(bookName: string) {
+    isSyncing = true;
+    try {
+      const res = await fetch(`/api/books/${encodeURIComponent(bookName)}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        alert(`Lỗi khi submit batch cho cuốn ${bookName}: ${err.error || 'Thất bại'}`);
+      }
+      await fetchStatus();
+    } catch (err: unknown) {
+      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  async function handleDownloadBookZip(bookName: string) {
+    await handleExportMarkdown(bookName);
+  }
+
+  async function handleDeleteBook(bookName: string) {
+    const ok = confirm(
+      `Bạn có chắc chắn muốn xóa toàn bộ dữ liệu của cuốn sách "${bookName}" khỏi Sheet 1 và danh sách batch_jobs không?`,
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/books/${encodeURIComponent(bookName)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { deletedCount: number };
+        alert(`Đã xóa thành công ${data.deletedCount} dòng của cuốn "${bookName}".`);
+        await fetchStatus();
+      } else {
+        const err = (await res.json()) as { error?: string };
+        alert(`Lỗi khi xóa: ${err.error || 'Thất bại'}`);
+      }
+    } catch (err: unknown) {
+      alert(`Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function handlePollBatches() {
     isPollingBatches = true;
     try {
@@ -118,9 +164,10 @@
     }
   }
 
-  async function handleExportMarkdown() {
+  async function handleExportMarkdown(targetBook?: string) {
     try {
-      const res = await fetch('/api/export');
+      const url = targetBook ? `/api/export?book=${encodeURIComponent(targetBook)}` : '/api/export';
+      const res = await fetch(url);
       if (!res.ok) {
         const errorData = (await res.json().catch(() => ({ error: 'Không thể xuất ZIP' }))) as { error?: string };
         throw new Error(errorData.error || 'Lỗi khi xuất file ZIP');
@@ -128,26 +175,30 @@
 
       const count = res.headers.get('X-Exported-Count') || '0';
       if (parseInt(count, 10) === 0) {
-        alert('Chưa có trang nào hoàn thành OCR để xuất ZIP.');
+        alert(
+          targetBook
+            ? `Chưa có trang nào của cuốn "${targetBook}" hoàn thành OCR để xuất ZIP.`
+            : 'Chưa có trang nào hoàn thành OCR để xuất ZIP.',
+        );
         return;
       }
 
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition') || '';
-      let filename = 'ocr-markdown-pages.zip';
+      let filename = targetBook ? `ocr-${targetBook}.zip` : 'ocr-markdown-pages.zip';
       const match = contentDisposition.match(/filename="?([^"]+)"?/);
       if (match && match[1]) {
         filename = match[1];
       }
 
-      const url = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(blobUrl);
     } catch (err: unknown) {
       alert(`Lỗi khi tải ZIP markdown: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -215,9 +266,17 @@
       onModelChange={handleModelChange}
       onRunSync={handleRunSync}
       onPollBatches={handlePollBatches}
-      onExportMarkdown={handleExportMarkdown}
+      onExportMarkdown={() => handleExportMarkdown()}
     />
   </div>
+
+  <BooksOverviewCard
+    records={statusData.records}
+    isSyncing={isSyncing}
+    onRunBookBatch={handleRunBookBatch}
+    onDownloadBookZip={handleDownloadBookZip}
+    onDeleteBook={handleDeleteBook}
+  />
 
   {#if statusData.useBatchMode || (statusData.batchJobs && statusData.batchJobs.length > 0)}
     <BatchJobsTable
