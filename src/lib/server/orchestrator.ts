@@ -18,6 +18,21 @@ class ServiceOrchestrator {
   private cronPollTask: ScheduledTask | null = null;
   private lastSetupCheck: SetupCheckResult | null = null;
   private activeModel: string = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+  private useBatchMode: boolean =
+    process.env.USE_BATCH_MODE === undefined || process.env.USE_BATCH_MODE.trim() === ''
+      ? true
+      : process.env.USE_BATCH_MODE.trim().toLowerCase() !== 'false';
+
+  public getUseBatchMode(): boolean {
+    return this.useBatchMode;
+  }
+
+  public setUseBatchMode(val: boolean): void {
+    this.useBatchMode = Boolean(val);
+    logger.info(
+      `Switched OCR processing mode to: ${this.useBatchMode ? 'Batch Mode (Paid Tier)' : 'Direct Realtime Mode (Free Tier)'}`,
+    );
+  }
 
   public getActiveModel(): string {
     return this.activeModel;
@@ -109,10 +124,7 @@ class ServiceOrchestrator {
       }
     }
 
-    const useBatchMode =
-      process.env.USE_BATCH_MODE === undefined || process.env.USE_BATCH_MODE.trim() === ''
-        ? true
-        : process.env.USE_BATCH_MODE.trim().toLowerCase() !== 'false';
+    const useBatchMode = this.useBatchMode;
     const batchWaitBeforeSubmitMinutes = parseInt(
       process.env.BATCH_WAIT_BEFORE_SUBMIT_MINUTES || '10',
       10,

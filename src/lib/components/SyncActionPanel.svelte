@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { RefreshCw, Download, Layers, Sparkles, Send, Cpu } from '@lucide/svelte';
+  import { RefreshCw, Download, Layers, Sparkles, Send, Cpu, Zap } from '@lucide/svelte';
   import type { SyncSummary } from '$lib/types/ocr.js';
   import type { GeminiModelInfo } from '$lib/types/config.js';
 
@@ -16,6 +16,7 @@
     batchPollIntervalMinutes: number;
     isPolling?: boolean;
     onModelChange: (model: string) => void;
+    onToggleMode?: (targetBatch: boolean) => void;
     onScanDrive?: () => void;
     onRunSync: () => void;
     onPollBatches?: () => void;
@@ -35,6 +36,7 @@
     batchPollIntervalMinutes,
     isPolling = false,
     onModelChange,
+    onToggleMode,
     onScanDrive,
     onRunSync,
     onPollBatches,
@@ -64,13 +66,13 @@
               <span
                 class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
               >
-                Batch API Mode (50% Cost)
+                Batch API Mode (Paid Tier)
               </span>
             {:else}
               <span
                 class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
               >
-                Direct Realtime Mode
+                Direct Mode (Free Tier)
               </span>
             {/if}
           </div>
@@ -81,7 +83,45 @@
       </div>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-3 text-xs">
+    <!-- Mode Toggle Switch (Free Tier vs Paid Batch) -->
+    <div class="mt-4 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+          <Zap class="w-3.5 h-3.5 text-amber-400" />
+          Chế độ xử lý OCR:
+        </span>
+        <span class="text-[11px] text-slate-400 font-mono">
+          {useBatchMode ? '📦 Gemini Batch API' : '⚡ Trực tiếp (Free Tier)'}
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800">
+        <button
+          type="button"
+          onclick={() => onToggleMode && onToggleMode(false)}
+          class="py-1.5 px-2 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer {!useBatchMode
+            ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}"
+          title="Nhận diện OCR tức thì từng trang, tương thích tài khoản Google AI Free Tier (không cần thẻ tín dụng)"
+        >
+          <Zap class="w-3.5 h-3.5 {!useBatchMode ? 'text-white' : 'text-emerald-400'}" />
+          <span>⚡ Trực tiếp (Free Tier)</span>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => onToggleMode && onToggleMode(true)}
+          class="py-1.5 px-2 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer {useBatchMode
+            ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'}"
+          title="Đóng gói JSONL gửi lên Gemini Batch API giảm 50% chi phí (yêu cầu tài khoản Paid Tier)"
+        >
+          <Layers class="w-3.5 h-3.5 {useBatchMode ? 'text-white' : 'text-indigo-400'}" />
+          <span>📦 Batch (Paid Tier)</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-3 grid grid-cols-2 gap-3 text-xs">
       <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 col-span-2">
         <div class="flex items-center justify-between">
           <span class="text-slate-400 flex items-center gap-1.5 font-medium">

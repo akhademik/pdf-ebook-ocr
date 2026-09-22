@@ -23,10 +23,20 @@ export const DELETE: RequestHandler = async ({ params }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ params }) => {
+export const POST: RequestHandler = async ({ params, request }) => {
   const bookName = decodeURIComponent(params.bookName || '').trim();
   if (!bookName) {
     return json({ error: 'Tên sách không hợp lệ' }, { status: 400 });
+  }
+
+  let mode: 'batch' | 'direct' = orchestrator.getUseBatchMode() ? 'batch' : 'direct';
+  try {
+    const body = (await request.json()) as { mode?: 'batch' | 'direct' };
+    if (body.mode === 'batch' || body.mode === 'direct') {
+      mode = body.mode;
+    }
+  } catch {
+    // Body is optional
   }
 
   const appscriptClient = orchestrator.getAppscriptClient();
@@ -40,18 +50,22 @@ export const POST: RequestHandler = async ({ params }) => {
   if (batchRunManager.isBookRunning(bookName)) {
     return json(
       {
-        error: `Cuốn sách "${bookName}" đang có một tiến trình nạp batch đang chạy.`,
+        error: `Cuốn sách "${bookName}" đang có một tiến trình OCR/batch đang chạy.`,
         run: batchRunManager.getRunForBook(bookName),
       },
       { status: 409 },
     );
   }
 
-  const run = batchRunManager.createAndStartRun(bookName, {
-    appscriptClient,
-    geminiClient,
-    geminiBatchClient,
-  });
+  const run = batchRunManager.createAndStartRun(
+    bookName,
+    {
+      appscriptClient,
+      geminiClient,
+      geminiBatchClient,
+    },
+    mode,
+  );
 
   return json({ success: true, run }, { status: 202 });
 };

@@ -69,26 +69,35 @@ class BatchRunManager {
       active &&
       (active.phase === 'preparing' ||
         active.phase === 'downloading' ||
-        active.phase === 'uploading'),
+        active.phase === 'uploading' ||
+        active.phase === 'ocr_processing'),
     );
   }
 
   /**
-   * Start a new asynchronous batch run for a book.
+   * Start a new asynchronous batch or direct run for a book.
    * Immediately returns the BatchRun instance while processing in background.
    */
-  public createAndStartRun(bookName: string, deps: BatchRunDependencies): BatchRun {
+  public createAndStartRun(
+    bookName: string,
+    deps: BatchRunDependencies,
+    mode: 'batch' | 'direct' = 'batch',
+  ): BatchRun {
     const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
 
     const run: BatchRun = {
       runId,
       bookName,
+      mode,
       phase: 'preparing',
       totalImages: 0,
       processedImages: 0,
       percent: 0,
-      message: `Khởi tạo tiến trình nạp lô cho cuốn "${bookName}"...`,
+      message:
+        mode === 'direct'
+          ? `Khởi tạo tiến trình OCR trực tiếp (Free Tier) cho cuốn "${bookName}"...`
+          : `Khởi tạo tiến trình nạp lô cho cuốn "${bookName}"...`,
       startedAt: now,
       updatedAt: now,
     };
@@ -101,7 +110,7 @@ class BatchRunManager {
 
     // Launch execution in background
     this.executeRunInBackground(run, deps).catch((err) => {
-      logger.error(`Unhandled error in batch run ${runId}:`, err);
+      logger.error(`Unhandled error in run ${runId}:`, err);
     });
 
     return run;
@@ -112,7 +121,9 @@ class BatchRunManager {
     const maxPerJob = deps.maxImagesPerJob || 300;
 
     try {
-      logger.info(`[BatchRun ${run.runId}] Starting background processing for "${run.bookName}"`);
+      logger.info(
+        `[BatchRun ${run.runId}] Starting background processing (${run.mode}) for "${run.bookName}"`,
+      );
       run.phase = 'preparing';
       run.message = 'Đang đọc danh sách các trang ở trạng thái Chờ (pending) từ Google Sheet...';
       run.updatedAt = new Date().toISOString();
@@ -133,6 +144,83 @@ class BatchRunManager {
 
       run.totalImages = pendingRecords.length;
       run.processedImages = 0;
+      const prompt = geminiClient.getPrompt();
+      const modelToUse = geminiClient.getModelName();
+
+      // ==========================================
+      // MODE 1: Direct Realtime OCR (Free Tier)
+      // ==========================================
+      if (run.mode === 'direct') {
+        run.phase = 'ocr_processing';
+        run.message = `Bắt đầu nhận diện OCR trực tiếp cho ${run.totalImages} trang (Free Tier)...`;
+        run.updatedAt = new Date().toISOString();
+
+        // Mark rows as 'processing'
+        await appscriptClient.batchUpdateRows(
+          pendingRecords.map((c) => ({
+            identifier: c.driveFileId,
+            data: { status: 'processing' },
+          })),
+        );
+
+        for (let i = 0; i < pendingRecords.length; i++) {
+          const item = pendingRecords[i];
+          run.message = `[${i + 1}/${run.totalImages}] Đang tải ảnh và OCR cho "${item.fileName}"...`;
+          run.updatedAt = new Date().toISOString();
+
+          try {
+            const { base64, mimeType } = await appscriptClient.getImageBase64(item.driveFileId);
+            const resultText = await geminiClient.performOcr(base64, mimeType, prompt);
+
+            await appscriptClient.batchUpdateRows([
+              {
+                identifier: item.driveFileId,
+                data: {
+                  status: 'done',
+                  ocrText: resultText,
+                  errorMessage: '',
+                },
+              },
+            ]);
+            logger.info(
+              `[BatchRun ${run.runId}] OCR done for "${item.fileName}" (${i + 1}/${run.totalImages})`,
+            );
+          } catch (pageErr: unknown) {
+            const pageErrMsg = pageErr instanceof Error ? pageErr.message : String(pageErr);
+            logger.error(
+              `[BatchRun ${run.runId}] Error OCRing page "${item.fileName}": ${pageErrMsg}`,
+            );
+            await appscriptClient.batchUpdateRows([
+              {
+                identifier: item.driveFileId,
+                data: {
+                  status: 'error',
+                  errorMessage: pageErrMsg,
+                },
+              },
+            ]);
+          }
+
+          run.processedImages++;
+          run.percent = Math.round((run.processedImages / run.totalImages) * 100);
+          run.updatedAt = new Date().toISOString();
+
+          // Polite throttle for Free Tier RPM limits (15 RPM limit -> ~1.2s delay)
+          if (i < pendingRecords.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+        }
+
+        run.phase = 'completed';
+        run.percent = 100;
+        run.message = `Đã hoàn thành nhận diện OCR trực tiếp (Free Tier) cho ${run.processedImages}/${run.totalImages} trang.`;
+        run.updatedAt = new Date().toISOString();
+        return;
+      }
+
+      // ==========================================
+      // MODE 2: Gemini Batch API (Paid Tier)
+      // ==========================================
       run.phase = 'downloading';
       run.message = `Đang chuẩn bị tải ${run.totalImages} ảnh từ Google Drive (tải song song 4 luồng)...`;
       run.updatedAt = new Date().toISOString();
@@ -144,9 +232,6 @@ class BatchRunManager {
           data: { status: 'batching' },
         })),
       );
-
-      const prompt = geminiClient.getPrompt();
-      const modelToUse = geminiClient.getModelName();
 
       // Chunk if larger than maxPerJob
       for (let i = 0; i < pendingRecords.length; i += maxPerJob) {
@@ -222,19 +307,21 @@ class BatchRunManager {
       logger.error(`[BatchRun ${run.runId}] Failed: ${msg}`);
       run.phase = 'error';
       run.errorMessage = msg;
-      run.message = `Gặp lỗi khi xử lý batch: ${msg}`;
+      run.message = `Gặp lỗi khi xử lý: ${msg}`;
       run.updatedAt = new Date().toISOString();
 
       try {
-        // Rollback sheet rows from 'batching' back to 'pending' so user can retry
+        // Rollback sheet rows from 'batching' or 'processing' back to 'pending' so user can retry
         const existingRecords = await appscriptClient.readSheetRows();
-        const batchingRecords = existingRecords.filter(
+        const pendingRollbackRecords = existingRecords.filter(
           (r) =>
-            r.status === 'batching' && (r.bookName || 'Default') === run.bookName && r.driveFileId,
+            (r.status === 'batching' || r.status === 'processing') &&
+            (r.bookName || 'Default') === run.bookName &&
+            r.driveFileId,
         );
-        if (batchingRecords.length > 0) {
+        if (pendingRollbackRecords.length > 0) {
           await appscriptClient.batchUpdateRows(
-            batchingRecords.map((c) => ({
+            pendingRollbackRecords.map((c) => ({
               identifier: c.driveFileId,
               data: { status: 'pending', errorMessage: '' },
             })),

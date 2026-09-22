@@ -15,6 +15,7 @@
   interface Props {
     records: SheetRecord[];
     isSyncing: boolean;
+    useBatchMode?: boolean;
     batchRuns?: BatchRun[];
     onRunBookBatch: (bookName: string) => void;
     onDownloadBookZip: (bookName: string) => void;
@@ -24,6 +25,7 @@
   let {
     records,
     isSyncing,
+    useBatchMode = true,
     batchRuns = [],
     onRunBookBatch,
     onDownloadBookZip,
@@ -96,7 +98,11 @@
       </div>
       <div>
         <h2 class="text-sm font-semibold text-white">Quản lý sách & Tiến độ ({bookStats.length} cuốn)</h2>
-        <p class="text-xs text-slate-400">Theo dõi tiến trình từng cuốn, chạy batch không đồng bộ hoặc xóa sách đã xong</p>
+        <p class="text-xs text-slate-400">
+          {useBatchMode
+            ? 'Chế độ Batch API (giảm 50% chi phí - yêu cầu Paid Tier)'
+            : 'Chế độ Trực tiếp (nhận diện tức thì - phù hợp Free Tier)'}
+        </p>
       </div>
     </div>
   </div>
@@ -113,7 +119,8 @@
           currentRun &&
           (currentRun.phase === 'preparing' ||
             currentRun.phase === 'downloading' ||
-            currentRun.phase === 'uploading')}
+            currentRun.phase === 'uploading' ||
+            currentRun.phase === 'ocr_processing')}
         <div class="bg-slate-950/60 border {isRunning ? 'border-indigo-500/60 ring-1 ring-indigo-500/30' : 'border-slate-800/80'} rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition">
           <div>
             <div class="flex items-center justify-between gap-2 mb-2">
@@ -133,13 +140,13 @@
               ></div>
             </div>
 
-            <!-- Active Batch Run Progress Banner (Live P0 Feature) -->
+            <!-- Active Batch / Direct Run Progress Banner (Live Feature) -->
             {#if isRunning && currentRun}
               <div class="mb-3 p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-xs">
                 <div class="flex items-center justify-between gap-2 text-indigo-300 font-medium mb-1.5">
                   <span class="flex items-center gap-1.5">
                     <LoaderCircle class="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                    <span>{currentRun.phase === 'downloading' ? 'Đang tải ảnh...' : currentRun.phase === 'uploading' ? 'Đang nạp lên Gemini...' : 'Đang chuẩn bị...'}</span>
+                    <span>{currentRun.phase === 'ocr_processing' ? 'Đang nhận diện OCR (Free Tier)...' : currentRun.phase === 'downloading' ? 'Đang tải ảnh...' : currentRun.phase === 'uploading' ? 'Đang nạp lên Gemini...' : 'Đang chuẩn bị...'}</span>
                   </span>
                   <span class="font-mono font-bold text-indigo-200">{currentRun.percent}%</span>
                 </div>
@@ -153,7 +160,7 @@
                   {currentRun.message}
                 </div>
               </div>
-            {:else if currentRun && currentRun.phase === 'batch_submitted'}
+            {:else if currentRun && (currentRun.phase === 'batch_submitted' || currentRun.phase === 'completed')}
               <div class="mb-3 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-1.5">
                 <CircleCheck class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span class="truncate" title={currentRun.message}>
@@ -193,15 +200,15 @@
                 onclick={() => onRunBookBatch(book.bookName)}
                 disabled={isSyncing || isRunning || book.pending === 0}
                 type="button"
-                class="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer disabled:opacity-40"
-                title={book.pending === 0 ? 'Không có trang pending để gửi batch' : 'Gửi batch không đồng bộ cho cuốn sách này'}
+                class="px-2.5 py-1.5 {useBatchMode ? 'bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border-indigo-500/30' : 'bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border-emerald-500/30'} border rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer disabled:opacity-40"
+                title={book.pending === 0 ? 'Không có trang pending' : useBatchMode ? 'Gửi batch không đồng bộ cho cuốn sách này (Paid Tier)' : 'Chạy OCR trực tiếp cho cuốn sách này (Free Tier)'}
               >
                 {#if isRunning}
                   <LoaderCircle class="w-3 h-3 animate-spin" />
                   <span>Đang xử lý...</span>
                 {:else}
                   <Play class="w-3 h-3" />
-                  <span>Chạy Batch ({book.pending})</span>
+                  <span>{useBatchMode ? 'Chạy Batch' : 'Chạy OCR'} ({book.pending})</span>
                 {/if}
               </button>
 

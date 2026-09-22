@@ -150,14 +150,15 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 17:20
+- **Cập nhật lần cuối**: 2026-09-22 18:10
 - **Đã hoàn thành**:
-  - Sửa lỗi phân tích trạng thái **Gemini Batch Status (`BATCH_STATE_SUCCEEDED` & `response.responsesFile`)**:
-    - Cập nhật hàm `checkBatchStatus` trích xuất chính xác trạng thái từ `metadata.state` (`BATCH_STATE_SUCCEEDED`) hoặc cờ `done: true` của Long Running Operation trong Google AI Batch API.
-    - Cập nhật trường đường dẫn kết quả `outputUri` từ `response.responsesFile` và `metadata.output.responsesFile`.
-    - Nâng cấp `fetchBatchResults` thử nhiều endpoint tải file linh hoạt (`:content`, `:download?alt=media`, `?alt=media`) và hỗ trợ linh hoạt key dạng `key`, `custom_id` hoặc `id`.
-  - Sửa lỗi tích hợp **Gemini Batch API (400 FAILED_PRECONDITION)** với MIME type `application/jsonl` và kiểm tra file `state: ACTIVE`.
-  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (25/25 passed), knip, graphify.
+  - Hỗ trợ đầy đủ **2 chế độ OCR linh hoạt**:
+    - **⚡ Trực tiếp (Free Tier)**: Nhận diện tuần tự từng trang với tốc độ tối ưu và cơ chế điều tiết RPM an toàn, tương thích 100% tài khoản Google AI miễn phí (không yêu cầu thẻ tín dụng).
+    - **📦 Gemini Batch API (Paid Tier)**: Đóng gói JSONL gửi lô lên Google AI để giảm 50% chi phí (yêu cầu tài khoản Paid Tier có bật Billing).
+  - Bổ sung **Toggle Mode Selector & Warning Modal**:
+    - Giao diện chuyển đổi tức thì giữa chế độ Free Tier và Paid Tier Batch.
+    - Khi người dùng bấm chuyển sang Batch Mode, hệ thống bật popup cảnh báo yêu cầu tài khoản Paid Tier để tránh lỗi 400 FAILED_PRECONDITION.
+  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (26/26 passed), knip, graphify.
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
   - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
@@ -165,6 +166,17 @@ flowchart TD
 ---
 
 ## 📜 Changelog
+
+### 2026-09-22 (Hỗ trợ OCR Trực tiếp cho Free Tier & Toggle Chế độ kèm Modal cảnh báo Paid Tier)
+
+- **Thêm/sửa**:
+  - Nâng cấp [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts) hỗ trợ cả 2 chế độ `direct` (Free Tier) và `batch` (Paid Tier).
+  - Tạo endpoint [`src/routes/api/mode/+server.ts`](src/routes/api/mode/+server.ts) và bổ sung state `useBatchMode` trong [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts).
+  - Bổ sung Toggle Switch trên [`src/lib/components/SyncActionPanel.svelte`](src/lib/components/SyncActionPanel.svelte) và cập nhật nhãn nút tương ứng trong [`src/lib/components/BooksOverviewCard.svelte`](src/lib/components/BooksOverviewCard.svelte).
+  - Tích hợp Modal cảnh báo yêu cầu tài khoản Paid Tier trong [`src/routes/+page.svelte`](src/routes/+page.svelte) khi kích hoạt Batch API.
+  - Thêm test case cho chế độ Direct OCR nâng tổng số test lên 26 tests (100% pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (26/26 pass) | knip ✅ | graphify ✅ (284 nodes, 18 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/types/batchRun.ts`](src/lib/types/batchRun.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts), [`src/routes/api/mode/+server.ts`](src/routes/api/mode/+server.ts), [`src/routes/api/books/[bookName]/+server.ts`](src/routes/api/books/[bookName]/+server.ts), [`src/lib/components/SyncActionPanel.svelte`](src/lib/components/SyncActionPanel.svelte), [`src/lib/components/BooksOverviewCard.svelte`](src/lib/components/BooksOverviewCard.svelte), [`src/routes/+page.svelte`](src/routes/+page.svelte), [`tests/batchRunManager.test.ts`](tests/batchRunManager.test.ts), [`README.md`](README.md).
 
 ### 2026-09-22 (Sửa lỗi phân tích Gemini Batch Status & URL tải kết quả responsesFile)
 

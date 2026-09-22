@@ -199,17 +199,79 @@
     }
   }
 
+  async function handleToggleMode(targetBatch: boolean) {
+    if (targetBatch) {
+      // Prompt modal warning for Paid Tier
+      showConfirmModal(
+        'Yêu cầu Tài khoản Paid Tier (Google AI Studio)',
+        'Gemini Batch API yêu cầu tài khoản Google AI Studio đã liên kết phương thức thanh toán (Paid Tier). Nếu bạn đang dùng tài khoản Free Tier (miễn phí), Google sẽ từ chối tạo lô với lỗi 400 FAILED_PRECONDITION.',
+        async () => {
+          try {
+            const res = await fetch('/api/mode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ useBatchMode: true }),
+            });
+            if (res.ok) {
+              statusData.useBatchMode = true;
+              showSuccessModal(
+                'Đã kích hoạt Gemini Batch API (Paid Tier)',
+                'Hệ thống sẽ tự động đóng gói JSONL và gửi lô lên Gemini Batch API để giảm 50% chi phí.',
+                [
+                  'Giảm 50% chi phí API so với direct realtime.',
+                  'Có thể theo dõi trạng thái lô trong bảng Batch Jobs.',
+                ],
+              );
+            }
+          } catch (err: unknown) {
+            showErrorModal(
+              'Lỗi khi đổi chế độ',
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        },
+        'Kích hoạt Batch (Paid Tier)',
+        'Giữ chế độ Free Tier',
+      );
+    } else {
+      try {
+        const res = await fetch('/api/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ useBatchMode: false }),
+        });
+        if (res.ok) {
+          statusData.useBatchMode = false;
+          showSuccessModal(
+            'Đã chuyển sang chế độ Trực tiếp (Free Tier)',
+            'Hệ thống sẽ thực hiện nhận diện OCR trực tiếp từng trang, tương thích 100% với tài khoản Google AI Studio miễn phí (không cần thẻ tín dụng).',
+          );
+        }
+      } catch (err: unknown) {
+        showErrorModal('Lỗi khi đổi chế độ', err instanceof Error ? err.message : String(err));
+      }
+    }
+  }
+
   async function fetchBatchRuns() {
     try {
       const res = await fetch('/api/batch-runs');
       if (res.ok) {
         const data = (await res.json()) as { runs: BatchRun[] };
         const prevRunningCount = batchRuns.filter(
-          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+          (r) =>
+            r.phase === 'preparing' ||
+            r.phase === 'downloading' ||
+            r.phase === 'uploading' ||
+            r.phase === 'ocr_processing',
         ).length;
         batchRuns = data.runs || [];
         const newRunningCount = batchRuns.filter(
-          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+          (r) =>
+            r.phase === 'preparing' ||
+            r.phase === 'downloading' ||
+            r.phase === 'uploading' ||
+            r.phase === 'ocr_processing',
         ).length;
 
         // If runs just finished, refresh main sheet status
@@ -227,7 +289,11 @@
       batchRunPollTimer = setInterval(async () => {
         await fetchBatchRuns();
         const hasActive = batchRuns.some(
-          (r) => r.phase === 'preparing' || r.phase === 'downloading' || r.phase === 'uploading',
+          (r) =>
+            r.phase === 'preparing' ||
+            r.phase === 'downloading' ||
+            r.phase === 'uploading' ||
+            r.phase === 'ocr_processing',
         );
         if (!hasActive && batchRunPollTimer) {
           clearInterval(batchRunPollTimer);
@@ -398,6 +464,7 @@
       batchPollIntervalMinutes={statusData.batchPollIntervalMinutes}
       isPolling={isPollingBatches}
       onModelChange={handleModelChange}
+      onToggleMode={handleToggleMode}
       onScanDrive={handleScanDrive}
       onRunSync={handleRunSync}
       onPollBatches={handlePollBatches}
@@ -408,6 +475,7 @@
   <BooksOverviewCard
     records={statusData.records}
     isSyncing={isSyncing}
+    useBatchMode={statusData.useBatchMode}
     {batchRuns}
     onRunBookBatch={handleRunBookBatch}
     onDownloadBookZip={handleDownloadBookZip}
