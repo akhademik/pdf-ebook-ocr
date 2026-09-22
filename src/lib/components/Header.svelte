@@ -22,12 +22,9 @@
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-base font-bold text-white tracking-tight">Docker OCR</h1>
-          <span class="px-2 py-0.5 text-[11px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-full">
-            Apps Script + Gemini Vision
-          </span>
+          <h1 class="text-base font-bold text-white tracking-tight">PDF OCR</h1>
         </div>
-        <p class="text-xs text-slate-400">Tự động hoá OCR và lưu Google Sheet</p>
+        <p class="text-xs text-slate-400">OCR và lưu Google Sheet</p>
       </div>
     </div>
 

@@ -112,8 +112,8 @@
     };
   }
 
-  async function fetchStatus() {
-    isRefreshing = true;
+  async function fetchStatus(showLoading = false) {
+    if (showLoading) isRefreshing = true;
     try {
       const res = await fetch('/api/status');
       if (res.ok) {
@@ -122,8 +122,12 @@
     } catch {
       // ignore network hiccups
     } finally {
-      isRefreshing = false;
+      if (showLoading) isRefreshing = false;
     }
+  }
+
+  function handleManualRefresh() {
+    fetchStatus(true);
   }
 
   async function handleScanDrive() {
@@ -323,7 +327,7 @@
 
 <Header
   {isRefreshing}
-  onRefresh={fetchStatus}
+  onRefresh={handleManualRefresh}
   onOpenPromptEditor={() => (isPromptEditorOpen = true)}
 />
 

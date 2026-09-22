@@ -20,8 +20,8 @@
         <ShieldCheck class="w-4 h-4" />
       </div>
       <div>
-        <h2 class="text-sm font-semibold text-white">Kiểm tra kết nối hệ thống (Apps Script Bridge)</h2>
-        <p class="text-xs text-slate-400">Xác thực Apps Script Web App, Google Drive Folder và Gemini API</p>
+        <h2 class="text-sm font-semibold text-white">Kiểm tra kết nối hệ thống </h2>
+        <p class="text-xs text-slate-400">Apps Script, Google Drive và Gemini API</p>
       </div>
     </div>
 
