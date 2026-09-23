@@ -31,8 +31,7 @@ export class DirectOcrRateLimiter {
   private queuePromise: Promise<void> = Promise.resolve();
 
   constructor(options?: RateLimiterOptions) {
-    const defaultRpm = parseInt(process.env.DIRECT_OCR_TARGET_RPM || '10', 10);
-    this.targetRpm = options?.targetRpm || (isNaN(defaultRpm) || defaultRpm < 1 ? 10 : defaultRpm);
+    this.targetRpm = options?.targetRpm || 10;
     this.minIntervalMs = Math.ceil(60000 / this.targetRpm);
     this.circuitBreaker3xPauseMs = (options?.circuitBreaker3xPauseSeconds || 60) * 1000;
     this.circuitBreaker5xPauseMs = (options?.circuitBreaker5xPauseSeconds || 180) * 1000;
