@@ -110,9 +110,14 @@ describe('syncService (Custom Sheet Schema & Batch Mode)', () => {
     };
 
     mockGeminiClient = {
-      performOcr: vi.fn().mockResolvedValue('Extracted Text from Page 1'),
+      performOcr: vi.fn().mockResolvedValue({
+        text: 'Extracted Text from Page 1',
+        status: 'done',
+        note: '',
+        errorMessage: '',
+      }),
       getPrompt: vi.fn().mockReturnValue('Default Prompt'),
-      getModelName: vi.fn().mockReturnValue('gemini-3.5-flash-lite'),
+      getModelName: vi.fn().mockReturnValue('gemini-3.6-flash'),
     };
 
     mockGeminiBatchClient = {

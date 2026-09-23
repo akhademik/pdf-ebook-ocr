@@ -44,7 +44,12 @@ describe('BatchRunManager', () => {
     mockGemini = {
       getPrompt: vi.fn().mockReturnValue('OCR prompt'),
       getModelName: vi.fn().mockReturnValue('gemini-3.6-flash'),
-      performOcr: vi.fn().mockResolvedValue('Direct OCR page text'),
+      performOcr: vi.fn().mockResolvedValue({
+        text: 'Direct OCR page text',
+        status: 'done',
+        note: '',
+        errorMessage: '',
+      }),
     };
 
     mockGeminiBatch = {

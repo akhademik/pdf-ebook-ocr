@@ -301,11 +301,18 @@
                 {/if}
               </td>
               <td class="px-4 py-3 max-w-[280px] truncate text-slate-400">
+                {#if rec.note}
+                  <span
+                    class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono mr-1.5 {rec.note.includes('TRANG') ? 'bg-slate-800 text-slate-300 border border-slate-700' : rec.note.includes('SEXUAL') ? 'bg-rose-950 text-rose-300 border border-rose-800' : rec.note.includes('COPYRIGHT') ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-slate-400'}"
+                  >
+                    {rec.note}
+                  </span>
+                {/if}
                 {#if rec.ocrText}
                   {rec.ocrText.slice(0, 100)}...
                 {:else if rec.errorMessage}
                   <span class="text-rose-400 text-[11px]">{rec.errorMessage}</span>
-                {:else}
+                {:else if !rec.note}
                   <span class="text-slate-600 italic">Chưa có text</span>
                 {/if}
               </td>

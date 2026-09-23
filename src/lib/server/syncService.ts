@@ -575,15 +575,27 @@ export class SyncService {
 
     try {
       const { base64, mimeType } = await this.appscriptClient.getImageBase64(record.driveFileId);
-      const ocrText = await this.geminiClient.performOcr(base64, mimeType);
+      const result = await this.geminiClient.performOcr(
+        base64,
+        mimeType,
+        undefined,
+        record.fileName,
+      );
 
       await this.appscriptClient.updateRow(record.driveFileId, {
-        status: 'done',
-        ocrText: ocrText,
-        errorMessage: '',
+        status: result.status,
+        ocrText: result.text,
+        note: result.note || '',
+        errorMessage: result.errorMessage || '',
       });
 
-      logger.info(`[Done] File: "${record.fileName}" OCR completed successfully.`);
+      if (result.status === 'done') {
+        logger.info(`[Done] File: "${record.fileName}" OCR completed successfully.`);
+      } else {
+        logger.warn(
+          `[Failed] File: "${record.fileName}" OCR marked as error: ${result.errorMessage}`,
+        );
+      }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error(`[Error] File: "${record.fileName}" OCR failed: ${errorMsg}`);

@@ -3,6 +3,7 @@ import type { SheetRecord, BatchJobRecord } from '$lib/types/ocr.js';
 import type { AppscriptClient } from './appscriptClient.js';
 import type { GeminiClient } from './geminiClient.js';
 import type { GeminiBatchClient, BatchItemInput } from './geminiBatchClient.js';
+import { directOcrRateLimiter } from './rateLimiter.js';
 import { logger } from './logger.js';
 
 interface BatchRunDependencies {
@@ -165,26 +166,40 @@ class BatchRunManager {
 
         for (let i = 0; i < pendingRecords.length; i++) {
           const item = pendingRecords[i];
-          run.message = `[${i + 1}/${run.totalImages}] Đang tải ảnh và OCR cho "${item.fileName}"...`;
+          const limiterStatus = directOcrRateLimiter.getStatus();
+          if (limiterStatus.isPaused) {
+            run.message = `[${i + 1}/${run.totalImages}] Tạm dừng an toàn (Gemini 429 Rate Limit) — Tự động tiếp tục sau ${limiterStatus.pausedRemainingSeconds}s...`;
+          } else {
+            run.message = `[${i + 1}/${run.totalImages}] Đang tải ảnh và OCR cho "${item.fileName}"...`;
+          }
           run.updatedAt = new Date().toISOString();
 
           try {
             const { base64, mimeType } = await appscriptClient.getImageBase64(item.driveFileId);
-            const resultText = await geminiClient.performOcr(base64, mimeType, prompt);
+            const result = await geminiClient.performOcr(base64, mimeType, prompt, item.fileName);
 
             await appscriptClient.batchUpdateRows([
               {
                 identifier: item.driveFileId,
                 data: {
-                  status: 'done',
-                  ocrText: resultText,
-                  errorMessage: '',
+                  status: result.status,
+                  ocrText: result.text,
+                  note: result.note || '',
+                  errorMessage: result.errorMessage || '',
                 },
               },
             ]);
-            logger.info(
-              `[BatchRun ${run.runId}] OCR done for "${item.fileName}" (${i + 1}/${run.totalImages})`,
-            );
+
+            if (result.status === 'done') {
+              logger.info(
+                `[BatchRun ${run.runId}] OCR done for "${item.fileName}" (${i + 1}/${run.totalImages})` +
+                  (result.isBlankPage ? ' [Trang trắng]' : ''),
+              );
+            } else {
+              logger.warn(
+                `[BatchRun ${run.runId}] Page "${item.fileName}" completed with status: ${result.status} (${result.errorMessage})`,
+              );
+            }
           } catch (pageErr: unknown) {
             const pageErrMsg = pageErr instanceof Error ? pageErr.message : String(pageErr);
             logger.error(
@@ -204,11 +219,6 @@ class BatchRunManager {
           run.processedImages++;
           run.percent = Math.round((run.processedImages / run.totalImages) * 100);
           run.updatedAt = new Date().toISOString();
-
-          // Polite throttle for Free Tier RPM limits (15 RPM limit -> ~1.2s delay)
-          if (i < pendingRecords.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-          }
         }
 
         run.phase = 'completed';

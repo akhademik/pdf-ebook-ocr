@@ -36,6 +36,7 @@ export function loadConfig(): AppConfig {
     10,
   );
   const batchMaxImagesPerJob = parseInt(process.env.BATCH_MAX_IMAGES_PER_JOB?.trim() || '300', 10);
+  const directOcrTargetRpm = parseInt(process.env.DIRECT_OCR_TARGET_RPM?.trim() || '10', 10);
 
   const missingFields = getMissingEnvVars();
   if (missingFields.length > 0) {
@@ -73,5 +74,7 @@ export function loadConfig(): AppConfig {
         : batchPollIntervalMinutes,
     batchMaxImagesPerJob:
       isNaN(batchMaxImagesPerJob) || batchMaxImagesPerJob < 1 ? 300 : batchMaxImagesPerJob,
+    directOcrTargetRpm:
+      isNaN(directOcrTargetRpm) || directOcrTargetRpm < 1 ? 10 : directOcrTargetRpm,
   };
 }

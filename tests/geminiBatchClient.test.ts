@@ -196,4 +196,31 @@ describe('GeminiBatchClient', () => {
     expect(results.get('file1')?.ocrText).toBe('OCR Result Page 1');
     expect(results.get('file2')?.ocrText).toBe('OCR Result Page 2');
   });
+
+  it('should throw error and abort when uploaded file enters FAILED state', async () => {
+    const mockFetch = vi.fn();
+    global.fetch = mockFetch;
+
+    // 1. Mock file upload
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ file: { name: 'files/failed-file-123', uri: 'https://...' } }),
+    });
+
+    // 2. Mock getFileMetadata returning FAILED
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        name: 'files/failed-file-123',
+        mimeType: 'application/jsonl',
+        sizeBytes: '512',
+        state: 'FAILED',
+        error: { code: 400, message: 'Invalid JSONL format' },
+      }),
+    });
+
+    await expect(client.uploadJsonlFile('invalid content', 'test.jsonl')).rejects.toThrow(
+      'Uploaded file entered FAILED state on Gemini',
+    );
+  });
 });

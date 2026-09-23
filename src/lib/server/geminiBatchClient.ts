@@ -124,20 +124,19 @@ export class GeminiBatchClient {
         for (let poll = 0; poll < 5; poll++) {
           await new Promise((resolve) => setTimeout(resolve, 1500));
           fileMeta = await this.getFileMetadata(uploadedName);
-          if (fileMeta.state === 'ACTIVE') {
-            logger.info(`File ${uploadedName} became ACTIVE.`);
+          if (fileMeta.state === 'ACTIVE' || fileMeta.state === 'FAILED') {
             break;
           }
         }
       }
-
-      if (fileMeta.state === 'FAILED') {
-        throw new Error(
-          `Uploaded file entered FAILED state on Gemini: ${JSON.stringify(fileMeta.error || fileMeta)}`,
-        );
-      }
     } catch (metaErr) {
       logger.warn(`Could not verify metadata for ${uploadedName}:`, metaErr);
+    }
+
+    if (fileMeta && fileMeta.state === 'FAILED') {
+      const failMsg = `Uploaded file entered FAILED state on Gemini: ${JSON.stringify(fileMeta.error || fileMeta)}`;
+      logger.error(failMsg);
+      throw new Error(failMsg);
     }
 
     return { fileName: uploadedName, metadata: fileMeta };

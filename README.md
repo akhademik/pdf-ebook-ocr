@@ -74,9 +74,15 @@ DRIVE_FOLDER_ID=1a2b3c4d5e6f7g8h9i0jKLMNOP
 
 # 3. Gemini API Key (Lấy tại https://aistudio.google.com/apikey)
 GEMINI_API_KEY=AIzaSy...
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-2.5-flash
 
-# 4. Cấu hình Batch API (tiết kiệm 50% chi phí)
+# 4. Cấu hình Rate Limiting & Batch API
+# Giới hạn an toàn tốc độ OCR trực tiếp Free Tier (RPM - Requests Per Minute).
+# LƯU Ý: Đây là client-side safety throttle của ứng dụng, không phải quota chính thức của Google.
+# Khuyến nghị conservative: 10 RPM (~1 request / 6 giây) để tránh lỗi 429 RESOURCE_EXHAUSTED.
+DIRECT_OCR_TARGET_RPM=10
+
+# Bật chế độ Gemini Batch API (tiết kiệm 50% chi phí)
 USE_BATCH_MODE=true
 BATCH_POLL_INTERVAL_MINUTES=20
 BATCH_MAX_IMAGES_PER_JOB=300
@@ -150,22 +156,47 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-22 18:10
+- **Cập nhật lần cuối**: 2026-09-23 10:40
 - **Đã hoàn thành**:
-  - Hỗ trợ đầy đủ **2 chế độ OCR linh hoạt**:
-    - **⚡ Trực tiếp (Free Tier)**: Nhận diện tuần tự từng trang với tốc độ tối ưu và cơ chế điều tiết RPM an toàn, tương thích 100% tài khoản Google AI miễn phí (không yêu cầu thẻ tín dụng).
-    - **📦 Gemini Batch API (Paid Tier)**: Đóng gói JSONL gửi lô lên Google AI để giảm 50% chi phí (yêu cầu tài khoản Paid Tier có bật Billing).
-  - Bổ sung **Toggle Mode Selector & Warning Modal**:
-    - Giao diện chuyển đổi tức thì giữa chế độ Free Tier và Paid Tier Batch.
-    - Khi người dùng bấm chuyển sang Batch Mode, hệ thống bật popup cảnh báo yêu cầu tài khoản Paid Tier để tránh lỗi 400 FAILED_PRECONDITION.
-  - Toàn bộ pipeline kiểm định: format, lint, type check, unit tests (26/26 passed), knip, graphify.
+  - **Global In-Process Rate Limiter & Safety Throttle**:
+    - Quản lý toàn bộ Direct OCR requests tập trung qua [`DirectOcrRateLimiter`](src/lib/server/rateLimiter.ts).
+    - Ngăn chặn burst request giữa các job chạy đồng thời (xử lý FIFO tuần tự, giữ khoảng cách tối thiểu giữa các request API).
+    - Cấu hình qua `DIRECT_OCR_TARGET_RPM` (mặc định conservative 10 RPM ~ 1 req/6s).
+  - **Xử lý 429 RESOURCE_EXHAUSTED & Circuit Breaker**:
+    - Tự động trích xuất `Retry-After` header / RPC RetryInfo từ Gemini.
+    - Áp dụng Exponential Backoff có Jitter ngẫu nhiên để tránh retry đồng loạt.
+    - Tích hợp **Circuit Breaker**: tự động tạm dừng Direct OCR an toàn trong 60s (nếu 3 lỗi 429 liên tiếp) hoặc 180s (nếu 5 lỗi liên tiếp), hiển thị đồng hồ đếm ngược trên UI; tự động reset counter khi có request thành công.
+  - **Phân loại lỗi & Phản hồi đặc biệt từ Gemini**:
+    - **Trang trắng (Blank page)**: Ghi nhận note `[TRANG_TRANG]` và đánh dấu trạng thái `done` mà không lãng phí retry.
+    - **Bộ lọc an toàn / Nội dung nhạy cảm (`SAFETY` / `SEXUAL`)**: Đánh dấu `[SEXUAL_CONTENT]` vào cột Note/Error và bỏ qua retry (lỗi vĩnh viễn do vi phạm chính sách).
+    - **Chính sách bản quyền / Trích dẫn (`RECITATION` / `COPYRIGHT`)**: Đánh dấu `[COPYRIGHTED]` vào cột Note/Error và bỏ qua retry.
+    - **Lỗi client (400, 401, 403, 404, invalid format)**: Không retry vô hạn.
+  - **Bảo vệ toàn vẹn Batch Mode**:
+    - Ngắt gửi Batch Job ngay lập tức khi file JSONL upload rơi vào trạng thái `FAILED`.
+    - Batch Mode hoạt động độc lập, không chịu ảnh hưởng bởi Direct OCR throttle.
+  - **Cấu hình Model Flash**:
+    - Danh sách 3 model Flash khả dụng: `gemini-3.6-flash` (mặc định), `gemini-3.7-flash`, `gemini-3.5-flash`.
+  - **Toàn bộ pipeline kiểm định**: format ✅ | lint ✅ | type ✅ | unit tests (36/36 passed) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
-  - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ hàm `appendRows`.
+  - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ các cột và hàm mới nhất.
 
 ---
 
 ## 📜 Changelog
+
+### 2026-09-23 (Cơ chế Global Rate Limiting, Retry 429 Exponential Backoff, Circuit Breaker & Xử lý lỗi đặc biệt)
+
+- **Thêm/sửa**:
+  - Tạo [`src/lib/server/rateLimiter.ts`](src/lib/server/rateLimiter.ts) triển khai Singleton `directOcrRateLimiter` xếp hàng FIFO và throttle theo `DIRECT_OCR_TARGET_RPM`.
+  - Nâng cấp [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts) tích hợp bộ phân giải `parseRetryAfter`, telemetry logging, retry exponential backoff + jitter, và phân loại chính xác các phản hồi: Trang trắng (`[TRANG_TRANG]`), Nội dung nhạy cảm (`[SEXUAL_CONTENT]`), Bản quyền (`[COPYRIGHTED]`).
+  - Cập nhật [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts) loại bỏ delay 1200ms hardcode cũ và tích hợp đồng hồ đếm ngược khi Circuit Breaker tạm dừng.
+  - Sửa kiểm tra trạng thái `FAILED` trong [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts) để ngắt submit lô hỏng.
+  - Cấu hình 3 model Flash: `gemini-3.6-flash` (mặc định), `gemini-3.7-flash`, `gemini-3.5-flash` trong [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/lib/server/config.ts`](src/lib/server/config.ts), [`.env.example`](.env.example).
+  - Cập nhật hiển thị badge phân loại note trong [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte).
+  - Bổ sung bộ unit test toàn diện trong [`tests/rateLimiter.test.ts`](tests/rateLimiter.test.ts) và [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), nâng tổng số test lên 36 tests (100% pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (36/36 pass) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
+- **File chính bị ảnh hưởng**: [`src/lib/server/rateLimiter.ts`](src/lib/server/rateLimiter.ts), [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts), [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts), [`src/lib/server/config.ts`](src/lib/server/config.ts), [`src/lib/types/config.ts`](src/lib/types/config.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/lib/server/syncService.ts`](src/lib/server/syncService.ts), [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte), [`tests/rateLimiter.test.ts`](tests/rateLimiter.test.ts), [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts), [`tests/config.test.ts`](tests/config.test.ts), [`tests/batchRunManager.test.ts`](tests/batchRunManager.test.ts), [`tests/syncService.test.ts`](tests/syncService.test.ts), [`.env.example`](.env.example), [`README.md`](README.md).
 
 ### 2026-09-22 (Hỗ trợ OCR Trực tiếp cho Free Tier & Toggle Chế độ kèm Modal cảnh báo Paid Tier)
 

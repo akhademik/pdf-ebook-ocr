@@ -75,16 +75,19 @@ class ServiceOrchestrator {
           id: 'gemini-3.6-flash',
           name: 'Gemini 3.6 Flash',
           displayName: 'Gemini 3.6 Flash (Mặc định)',
+          description: 'Thế hệ 3.6 Flash khuyến nghị bởi Google AI cho các tính năng mới nhất',
         },
         {
-          id: 'gemini-3.8-flash',
-          name: 'Gemini 3.8 Flash',
-          displayName: 'Gemini 3.8 Flash',
+          id: 'gemini-3.7-flash',
+          name: 'Gemini 3.7 Flash',
+          displayName: 'Gemini 3.7 Flash',
+          description: 'Thế hệ 3.7 Flash thế hệ mới với hiệu năng và độ chính xác cao',
         },
         {
-          id: 'gemini-3.6-flash-lite',
-          name: 'Gemini 3.6 Flash Lite',
-          displayName: 'Gemini 3.6 Flash Lite',
+          id: 'gemini-3.5-flash',
+          name: 'Gemini 3.5 Flash',
+          displayName: 'Gemini 3.5 Flash',
+          description: 'Thế hệ 3.5 Flash ổn định và tối ưu chi phí',
         },
       ];
     }

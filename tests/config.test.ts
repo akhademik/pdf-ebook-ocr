@@ -35,6 +35,7 @@ describe('config', () => {
     expect(config.batchWaitBeforeSubmitMinutes).toBe(10);
     expect(config.batchPollIntervalMinutes).toBe(20);
     expect(config.batchMaxImagesPerJob).toBe(300);
+    expect(config.directOcrTargetRpm).toBe(10);
     expect(config.pollIntervalMinutes).toBe(5);
     expect(config.maxConcurrency).toBe(3);
     expect(config.outputDir).toBe('./output');

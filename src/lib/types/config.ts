@@ -19,6 +19,7 @@ export interface AppConfig {
   batchWaitBeforeSubmitMinutes: number;
   batchPollIntervalMinutes: number;
   batchMaxImagesPerJob: number;
+  directOcrTargetRpm?: number;
 }
 
 export interface SetupCheckStep {
