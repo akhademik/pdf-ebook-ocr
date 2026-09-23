@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { loadConfig } from '../src/lib/server/config.js';
+import { directOcrRateLimiter } from '../src/lib/server/rateLimiter.js';
 
 describe('config', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.resetModules();
     process.env = { ...originalEnv };
   });
 
@@ -39,5 +39,17 @@ describe('config', () => {
     expect(config.pollIntervalMinutes).toBe(5);
     expect(config.maxConcurrency).toBe(3);
     expect(config.outputDir).toBe('./output');
+  });
+
+  it('should update directOcrRateLimiter targetRpm when DIRECT_OCR_TARGET_RPM is configured', () => {
+    process.env.APPSCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/test/exec';
+    process.env.APPSCRIPT_SECRET = 'secret123';
+    process.env.DRIVE_FOLDER_ID = 'test_folder_id';
+    process.env.GEMINI_API_KEY = 'test_gemini_key';
+    process.env.DIRECT_OCR_TARGET_RPM = '15';
+
+    const config = loadConfig();
+    expect(config.directOcrTargetRpm).toBe(15);
+    expect(directOcrRateLimiter.getStatus().targetRpm).toBe(15);
   });
 });

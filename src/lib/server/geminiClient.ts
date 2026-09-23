@@ -154,19 +154,30 @@ export class GeminiClient {
   }
 
   /**
-   * Test connection with configured model.
+   * Test connection with configured model (subject to global direct rate limiter).
    */
   async testConnection(): Promise<void> {
+    await directOcrRateLimiter.acquire('test_connection');
     try {
       const response = await this.ai.models.generateContent({
         model: this.modelName,
         contents: 'ping',
       });
       if (response && response.text) {
+        directOcrRateLimiter.recordSuccess('test_connection');
         return;
       }
     } catch (err: unknown) {
       const lastErr = err instanceof Error ? err : new Error(String(err));
+      const errMsg = lastErr.message.toLowerCase();
+      if (
+        errMsg.includes('429') ||
+        errMsg.includes('resource_exhausted') ||
+        errMsg.includes('rate limit')
+      ) {
+        const retryAfterSec = parseRetryAfter(lastErr);
+        directOcrRateLimiter.recordRateLimit(retryAfterSec || undefined, 'test_connection');
+      }
       throw new Error(
         `Không thể kết nối Gemini API với model ${this.modelName}: ${lastErr.message}`,
       );

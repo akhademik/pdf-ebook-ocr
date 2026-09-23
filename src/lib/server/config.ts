@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import type { AppConfig } from '$lib/types/config.js';
+import { directOcrRateLimiter } from './rateLimiter.js';
 
 dotenv.config();
 
@@ -52,6 +53,12 @@ export function loadConfig(): AppConfig {
     }
   }
 
+  const parsedTargetRpm =
+    isNaN(directOcrTargetRpm) || directOcrTargetRpm < 1 ? 10 : directOcrTargetRpm;
+
+  // Single source of truth: configure global rate limiter with loaded config
+  directOcrRateLimiter.configure({ targetRpm: parsedTargetRpm });
+
   return {
     appscriptWebAppUrl: appscriptWebAppUrl!,
     appscriptSecret: appscriptSecret!,
@@ -74,7 +81,6 @@ export function loadConfig(): AppConfig {
         : batchPollIntervalMinutes,
     batchMaxImagesPerJob:
       isNaN(batchMaxImagesPerJob) || batchMaxImagesPerJob < 1 ? 300 : batchMaxImagesPerJob,
-    directOcrTargetRpm:
-      isNaN(directOcrTargetRpm) || directOcrTargetRpm < 1 ? 10 : directOcrTargetRpm,
+    directOcrTargetRpm: parsedTargetRpm,
   };
 }

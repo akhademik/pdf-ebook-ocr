@@ -156,11 +156,12 @@ flowchart TD
 
 ## 📊 Trạng Thái Hệ Thống
 
-- **Cập nhật lần cuối**: 2026-09-23 10:40
+- **Cập nhật lần cuối**: 2026-09-23 11:35
 - **Đã hoàn thành**:
   - **Global In-Process Rate Limiter & Safety Throttle**:
     - Quản lý toàn bộ Direct OCR requests tập trung qua [`DirectOcrRateLimiter`](src/lib/server/rateLimiter.ts).
-    - Ngăn chặn burst request giữa các job chạy đồng thời (xử lý FIFO tuần tự, giữ khoảng cách tối thiểu giữa các request API).
+    - Bao gồm cả `testConnection()` trong Direct Free queue để tránh tạo request burst đột ngột khi người dùng kiểm tra kết nối API liên tục.
+    - `loadConfig()` đóng vai trò là **Single Source of Truth** thiết lập `directOcrRateLimiter.configure(...)`, triệt tiêu hoàn toàn race condition phụ thuộc thứ tự import module.
     - Cấu hình qua `DIRECT_OCR_TARGET_RPM` (mặc định conservative 10 RPM ~ 1 req/6s).
   - **Xử lý 429 RESOURCE_EXHAUSTED & Circuit Breaker**:
     - Tự động trích xuất `Retry-After` header / RPC RetryInfo từ Gemini.
@@ -176,7 +177,7 @@ flowchart TD
     - Batch Mode hoạt động độc lập, không chịu ảnh hưởng bởi Direct OCR throttle.
   - **Cấu hình Model Flash**:
     - Danh sách 3 model Flash khả dụng: `gemini-3.6-flash` (mặc định), `gemini-3.7-flash`, `gemini-3.5-flash`.
-  - **Toàn bộ pipeline kiểm định**: format ✅ | lint ✅ | type ✅ | unit tests (36/36 passed) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
+  - **Toàn bộ pipeline kiểm định**: format ✅ | lint ✅ | type ✅ | unit tests (37/37 passed) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
 - **Đang dở**: Không có.
 - **Nợ kỹ thuật / Cần lưu ý**:
   - Khi triển khai Google Apps Script mới, cần deploy phiên bản mới (New deployment) để đồng bộ các cột và hàm mới nhất.
@@ -189,13 +190,15 @@ flowchart TD
 
 - **Thêm/sửa**:
   - Tạo [`src/lib/server/rateLimiter.ts`](src/lib/server/rateLimiter.ts) triển khai Singleton `directOcrRateLimiter` xếp hàng FIFO và throttle theo `DIRECT_OCR_TARGET_RPM`.
+  - Đồng bộ `testConnection()` vào `directOcrRateLimiter` để kiểm soát 100% request `generateContent` Direct Free.
+  - Tối ưu `loadConfig()` trong [`src/lib/server/config.ts`](src/lib/server/config.ts) làm nguồn duy nhất cấu hình `directOcrRateLimiter`, độc lập thứ tự load module.
   - Nâng cấp [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts) tích hợp bộ phân giải `parseRetryAfter`, telemetry logging, retry exponential backoff + jitter, và phân loại chính xác các phản hồi: Trang trắng (`[TRANG_TRANG]`), Nội dung nhạy cảm (`[SEXUAL_CONTENT]`), Bản quyền (`[COPYRIGHTED]`).
   - Cập nhật [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts) loại bỏ delay 1200ms hardcode cũ và tích hợp đồng hồ đếm ngược khi Circuit Breaker tạm dừng.
   - Sửa kiểm tra trạng thái `FAILED` trong [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts) để ngắt submit lô hỏng.
   - Cấu hình 3 model Flash: `gemini-3.6-flash` (mặc định), `gemini-3.7-flash`, `gemini-3.5-flash` trong [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/lib/server/config.ts`](src/lib/server/config.ts), [`.env.example`](.env.example).
   - Cập nhật hiển thị badge phân loại note trong [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte).
-  - Bổ sung bộ unit test toàn diện trong [`tests/rateLimiter.test.ts`](tests/rateLimiter.test.ts) và [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), nâng tổng số test lên 36 tests (100% pass).
-- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (36/36 pass) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
+  - Bổ sung bộ unit test toàn diện trong [`tests/rateLimiter.test.ts`](tests/rateLimiter.test.ts), [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), [`tests/config.test.ts`](tests/config.test.ts), nâng tổng số test lên 37 tests (100% pass).
+- **Kết quả pipeline**: format ✅ | lint ✅ | type ✅ | test ✅ (37/37 pass) | knip ✅ | graphify ✅ (307 nodes, 22 communities, 0 import cycles).
 - **File chính bị ảnh hưởng**: [`src/lib/server/rateLimiter.ts`](src/lib/server/rateLimiter.ts), [`src/lib/server/geminiClient.ts`](src/lib/server/geminiClient.ts), [`src/lib/server/batchRunManager.ts`](src/lib/server/batchRunManager.ts), [`src/lib/server/geminiBatchClient.ts`](src/lib/server/geminiBatchClient.ts), [`src/lib/server/config.ts`](src/lib/server/config.ts), [`src/lib/types/config.ts`](src/lib/types/config.ts), [`src/lib/server/orchestrator.ts`](src/lib/server/orchestrator.ts), [`src/lib/server/syncService.ts`](src/lib/server/syncService.ts), [`src/lib/components/FileTable.svelte`](src/lib/components/FileTable.svelte), [`tests/rateLimiter.test.ts`](tests/rateLimiter.test.ts), [`tests/geminiPrompt.test.ts`](tests/geminiPrompt.test.ts), [`tests/geminiBatchClient.test.ts`](tests/geminiBatchClient.test.ts), [`tests/config.test.ts`](tests/config.test.ts), [`tests/batchRunManager.test.ts`](tests/batchRunManager.test.ts), [`tests/syncService.test.ts`](tests/syncService.test.ts), [`.env.example`](.env.example), [`README.md`](README.md).
 
 ### 2026-09-22 (Hỗ trợ OCR Trực tiếp cho Free Tier & Toggle Chế độ kèm Modal cảnh báo Paid Tier)
